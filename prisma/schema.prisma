@@ -1,0 +1,192 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String           @id @default(uuid())
+  name           String
+  email          String           @unique
+  password       String
+  image          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  walletBalance  Float            @default(0)
+  teams          FantasyTeam[]
+  contestEntries ContestEntry[]
+  transactions   Transaction[]
+}
+
+model Match {
+  id              String           @id
+  sportMonkId     String           @unique
+  name            String
+  format          String // T20, ODI, Test
+  status          String // upcoming, live, completed
+  startTime       DateTime
+  endTime         DateTime?
+  venue           String
+  teamAId         String
+  teamAName       String
+  teamALogo       String?
+  teamBId         String
+  teamBName       String
+  teamBLogo       String?
+  leagueId        String?
+  leagueName      String?
+  result          String?
+  isActive        Boolean          @default(true)
+  contests        Contest[]
+  players         MatchPlayer[]
+  fantasyTeams    FantasyTeam[]
+  playerStatistics PlayerStatistic[]
+}
+
+model Player {
+  id             String           @id
+  sportMonkId    String           @unique
+  name           String
+  image          String?
+  imageUrl       String?
+  country        String
+  teamId         String
+  teamName       String
+  role           String // batsman, bowler, all-rounder, wicket-keeper
+  battingStyle   String?
+  bowlingStyle   String?
+  credits        Float            @default(8.0)
+  isActive       Boolean          @default(true)
+  matchPlayers   MatchPlayer[]
+  fantasyTeamPlayers FantasyTeamPlayer[]
+  playerStatistics PlayerStatistic[]
+}
+
+model MatchPlayer {
+  id        String   @id @default(uuid())
+  matchId   String
+  playerId  String
+  teamId    String
+  points    Float    @default(0)
+  selected  Boolean  @default(false)
+  isCaptain Boolean  @default(false)
+  isViceCaptain Boolean @default(false)
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playerId])
+}
+
+model Contest {
+  id              String         @id @default(uuid())
+  matchId         String
+  name            String
+  entryFee        Float
+  totalSpots      Int
+  filledSpots     Int            @default(0)
+  prizePool       Float
+  totalPrize      Float
+  firstPrize      Float
+  winnerPercentage Int
+  isGuaranteed    Boolean        @default(false)
+  winnerCount     Int
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  match           Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  entries         ContestEntry[]
+  prizeBreakup    PrizeBreakup[]
+}
+
+model PrizeBreakup {
+  id          String  @id @default(uuid())
+  contestId   String
+  rank        Int
+  prize       Float
+  contest     Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, rank])
+}
+
+model FantasyTeam {
+  id          String               @id @default(uuid())
+  userId      String
+  matchId     String
+  name        String
+  totalPoints Float                @default(0)
+  captainId   String
+  viceCaptainId String
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match       Match                @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  players     FantasyTeamPlayer[]
+  contestEntries ContestEntry[]
+
+  @@unique([userId, matchId, name])
+}
+
+model FantasyTeamPlayer {
+  id           String      @id @default(uuid())
+  fantasyTeamId String
+  playerId     String
+  isCaptain    Boolean     @default(false)
+  isViceCaptain Boolean     @default(false)
+  fantasyTeam  FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
+  player       Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([fantasyTeamId, playerId])
+}
+
+model ContestEntry {
+  id          String      @id @default(uuid())
+  userId      String
+  contestId   String
+  fantasyTeamId String
+  rank        Int?
+  winAmount   Float?      @default(0)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest     Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contestId, fantasyTeamId])
+}
+
+model PlayerStatistic {
+  id            String   @id @default(uuid())
+  matchId       String
+  playerId      String
+  runs          Int      @default(0)
+  balls         Int      @default(0)
+  fours         Int      @default(0)
+  sixes         Int      @default(0)
+  strikeRate    Float?
+  wickets       Int      @default(0)
+  overs         Float    @default(0)
+  maidens       Int      @default(0)
+  economy       Float?
+  runsConceded  Int      @default(0)
+  catches       Int      @default(0)
+  stumpings     Int      @default(0)
+  runOuts       Int      @default(0)
+  points        Float    @default(0)
+  match         Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playerId])
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  userId      String
+  amount      Float
+  type        String   // deposit, withdrawal, contest_join, contest_win
+  status      String   // pending, completed, failed
+  reference   String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
