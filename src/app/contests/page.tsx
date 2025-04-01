@@ -1,50 +1,54 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import MainLayout from '@/components/MainLayout';
 
 export default function Contests() {
   const { data: session } = useSession();
-  const [loading, setLoading] = useState(false);
-  
-  // Placeholder contest data
-  const contests = [
-    {
-      id: 1,
-      matchId: 1,
-      name: 'Grand Prize Pool',
-      entryFee: 499,
-      totalPrize: 1000000,
-      totalSpots: 10000,
-      filledSpots: 5463,
-      firstPrize: 100000,
-      winnerPercentage: 40
-    },
-    {
-      id: 2,
-      matchId: 1,
-      name: 'Winner Takes All',
-      entryFee: 999,
-      totalPrize: 500000,
-      totalSpots: 500,
-      filledSpots: 245,
-      firstPrize: 250000,
-      winnerPercentage: 10
-    },
-    {
-      id: 3,
-      matchId: 1,
-      name: 'Practice Contest',
-      entryFee: 0,
-      totalPrize: 10000,
-      totalSpots: 10000,
-      filledSpots: 7890,
-      firstPrize: 1000,
-      winnerPercentage: 50
-    }
-  ];
+  const [loading, setLoading] = useState(true);
+  const [contests, setContests] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchContests = async () => {
+      try {
+        const response = await fetch('/api/admin/contests');
+        if (!response.ok) {
+          throw new Error('Failed to fetch contests');
+        }
+        const data = await response.json();
+        setContests(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContests();
+  }, []);
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">Loading contests...</div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center text-red-600">{error}</div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -54,13 +58,13 @@ export default function Contests() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2 className="text-xl font-bold">India vs Australia</h2>
+              <h2 className="text-xl font-bold">{contests[0]?.matchName || 'Loading match...'}</h2>
               <p className="text-gray-600">T20 • Melbourne Cricket Ground</p>
               <p className="text-sm text-gray-500">April 5, 2025 • 7:30 PM</p>
             </div>
             <div>
               <Link 
-                href="/matches/1"
+                href={`/matches/${contests[0]?.matchId || 1}`}
                 className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded"
               >
                 View Match

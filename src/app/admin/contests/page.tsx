@@ -12,112 +12,28 @@ export default function AdminContests() {
   const [matches, setMatches] = useState([]);
 
   useEffect(() => {
-    // Simulate fetching contests data
-    setTimeout(() => {
-      const matchesData = [
-        { id: 1, name: 'India vs Australia' },
-        { id: 2, name: 'England vs South Africa' },
-        { id: 3, name: 'Pakistan vs New Zealand' },
-        { id: 4, name: 'West Indies vs Sri Lanka' },
-        { id: 5, name: 'Bangladesh vs Afghanistan' }
-      ];
-      
-      setMatches(matchesData);
-      
-      setContests([
-        {
-          id: 1,
-          matchId: 1,
-          matchName: 'India vs Australia',
-          name: 'Grand Prize Pool',
-          entryFee: 499,
-          totalPrize: 1000000,
-          totalSpots: 10000,
-          filledSpots: 5463,
-          firstPrize: 100000,
-          winnerPercentage: 40,
-          status: 'upcoming'
-        },
-        {
-          id: 2,
-          matchId: 1,
-          matchName: 'India vs Australia',
-          name: 'Winner Takes All',
-          entryFee: 999,
-          totalPrize: 500000,
-          totalSpots: 500,
-          filledSpots: 245,
-          firstPrize: 250000,
-          winnerPercentage: 10,
-          status: 'upcoming'
-        },
-        {
-          id: 3,
-          matchId: 1,
-          matchName: 'India vs Australia',
-          name: 'Practice Contest',
-          entryFee: 0,
-          totalPrize: 10000,
-          totalSpots: 10000,
-          filledSpots: 7890,
-          firstPrize: 1000,
-          winnerPercentage: 50,
-          status: 'upcoming'
-        },
-        {
-          id: 4,
-          matchId: 2,
-          matchName: 'England vs South Africa',
-          name: 'Mega Contest',
-          entryFee: 299,
-          totalPrize: 300000,
-          totalSpots: 5000,
-          filledSpots: 2100,
-          firstPrize: 50000,
-          winnerPercentage: 30,
-          status: 'upcoming'
-        },
-        {
-          id: 5,
-          matchId: 4,
-          matchName: 'West Indies vs Sri Lanka',
-          name: 'Live Contest',
-          entryFee: 199,
-          totalPrize: 100000,
-          totalSpots: 2000,
-          filledSpots: 2000,
-          firstPrize: 20000,
-          winnerPercentage: 25,
-          status: 'live'
-        },
-        {
-          id: 6,
-          matchId: 5,
-          matchName: 'Bangladesh vs Afghanistan',
-          name: 'Completed Contest',
-          entryFee: 99,
-          totalPrize: 50000,
-          totalSpots: 1000,
-          filledSpots: 1000,
-          firstPrize: 10000,
-          winnerPercentage: 20,
-          status: 'completed'
-        }
-      ]);
-      
-      setLoading(false);
-    }, 1000);
-  }, []);
+    const fetchData = async () => {
+      try {
+        // Fetch matches
+        const matchesResponse = await fetch('/api/admin/matches');
+        if (!matchesResponse.ok) throw new Error('Failed to fetch matches');
+        const matchesData = await matchesResponse.json();
+        setMatches(matchesData);
 
-  // Filter contests based on search term and match filter
-  const filteredContests = contests.filter((contest: any) => {
-    const matchesSearchTerm = contest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             contest.matchName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesMatchFilter = matchFilter === 'all' || contest.matchId.toString() === matchFilter;
-    
-    return matchesSearchTerm && matchesMatchFilter;
-  });
+        // Fetch contests
+        const contestsResponse = await fetch('/api/admin/contests');
+        if (!contestsResponse.ok) throw new Error('Failed to fetch contests');
+        const contestsData = await contestsResponse.json();
+        setContests(contestsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -131,6 +47,34 @@ export default function AdminContests() {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const handleDelete = async (contestId) => {
+    if (!window.confirm('Are you sure you want to delete this contest?')) return;
+
+    try {
+      const response = await fetch(`/api/admin/contests/${contestId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete contest');
+
+      // Remove the deleted contest from the state
+      setContests(contests.filter(contest => contest.id !== contestId));
+    } catch (error) {
+      console.error('Error deleting contest:', error);
+      alert('Failed to delete contest. Please try again.');
+    }
+  };
+
+  // Filter contests based on search term and match filter
+  const filteredContests = contests.filter(contest => {
+    const matchesSearch = contest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contest.matchName.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilter = matchFilter === 'all' || contest.matchId.toString() === matchFilter;
+
+    return matchesSearch && matchesFilter;
+  });
 
   if (loading) {
     return (
@@ -224,7 +168,7 @@ export default function AdminContests() {
                   </td>
                 </tr>
               ) : (
-                filteredContests.map((contest: any) => (
+                filteredContests.map((contest: any) => contest && contest.status !== undefined && (
                   <tr key={contest.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{contest.name}</div>
@@ -269,12 +213,7 @@ export default function AdminContests() {
                         </Link>
                         <button 
                           className="text-red-600 hover:text-red-900"
-                          onClick={() => {
-                            if (window.confirm('Are you sure you want to delete this contest?')) {
-                              // Delete contest logic would go here
-                              console.log('Delete contest', contest.id);
-                            }
-                          }}
+                          onClick={() => handleDelete(contest.id)}
                         >
                           <FaTrash />
                         </button>

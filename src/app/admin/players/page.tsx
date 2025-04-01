@@ -14,172 +14,42 @@ export default function AdminPlayers() {
   const [teams, setTeams] = useState([]);
 
   useEffect(() => {
-    // Simulate fetching players data
-    setTimeout(() => {
-      const teamsData = [
-        { id: 'IND', name: 'India' },
-        { id: 'AUS', name: 'Australia' },
-        { id: 'ENG', name: 'England' },
-        { id: 'SA', name: 'South Africa' },
-        { id: 'PAK', name: 'Pakistan' },
-        { id: 'NZ', name: 'New Zealand' },
-        { id: 'WI', name: 'West Indies' },
-        { id: 'SL', name: 'Sri Lanka' },
-        { id: 'BAN', name: 'Bangladesh' },
-        { id: 'AFG', name: 'Afghanistan' }
-      ];
-      
-      setTeams(teamsData);
-      
-      setPlayers([
-        {
-          id: 101,
-          name: 'Virat Kohli',
-          team: 'IND',
-          teamName: 'India',
-          role: 'Batsman',
-          battingStyle: 'Right-handed',
-          bowlingStyle: 'Right-arm medium',
-          credits: 10.5,
-          image: '/player-images/virat-kohli.jpg',
-          stats: {
-            matches: 350,
-            runs: 12500,
-            wickets: 4,
-            average: 59.8,
-            strikeRate: 93.5
-          }
-        },
-        {
-          id: 102,
-          name: 'Rohit Sharma',
-          team: 'IND',
-          teamName: 'India',
-          role: 'Batsman',
-          battingStyle: 'Right-handed',
-          bowlingStyle: 'Right-arm off break',
-          credits: 10.0,
-          image: '/player-images/rohit-sharma.jpg',
-          stats: {
-            matches: 320,
-            runs: 10500,
-            wickets: 8,
-            average: 48.2,
-            strikeRate: 88.7
-          }
-        },
-        {
-          id: 103,
-          name: 'Steve Smith',
-          team: 'AUS',
-          teamName: 'Australia',
-          role: 'Batsman',
-          battingStyle: 'Right-handed',
-          bowlingStyle: 'Right-arm leg break',
-          credits: 9.5,
-          image: '/player-images/steve-smith.jpg',
-          stats: {
-            matches: 280,
-            runs: 9800,
-            wickets: 25,
-            average: 45.6,
-            strikeRate: 86.2
-          }
-        },
-        {
-          id: 104,
-          name: 'Pat Cummins',
-          team: 'AUS',
-          teamName: 'Australia',
-          role: 'Bowler',
-          battingStyle: 'Right-handed',
-          bowlingStyle: 'Right-arm fast',
-          credits: 9.0,
-          image: '/player-images/pat-cummins.jpg',
-          stats: {
-            matches: 210,
-            runs: 1200,
-            wickets: 320,
-            average: 22.5,
-            economy: 5.2
-          }
-        },
-        {
-          id: 201,
-          name: 'Joe Root',
-          team: 'ENG',
-          teamName: 'England',
-          role: 'Batsman',
-          battingStyle: 'Right-handed',
-          bowlingStyle: 'Right-arm off break',
-          credits: 9.5,
-          image: '/player-images/joe-root.jpg',
-          stats: {
-            matches: 290,
-            runs: 10200,
-            wickets: 30,
-            average: 47.8,
-            strikeRate: 87.5
-          }
-        },
-        {
-          id: 202,
-          name: 'Ben Stokes',
-          team: 'ENG',
-          teamName: 'England',
-          role: 'All-rounder',
-          battingStyle: 'Left-handed',
-          bowlingStyle: 'Right-arm fast-medium',
-          credits: 9.5,
-          image: '/player-images/ben-stokes.jpg',
-          stats: {
-            matches: 250,
-            runs: 6500,
-            wickets: 180,
-            average: 38.2,
-            economy: 5.8
-          }
-        },
-        {
-          id: 301,
-          name: 'Kieron Pollard',
-          team: 'WI',
-          teamName: 'West Indies',
-          role: 'All-rounder',
-          battingStyle: 'Right-handed',
-          bowlingStyle: 'Right-arm medium',
-          credits: 8.5,
-          image: '/player-images/kieron-pollard.jpg',
-          stats: {
-            matches: 280,
-            runs: 5800,
-            wickets: 120,
-            average: 32.5,
-            strikeRate: 150.2
-          }
-        },
-        {
-          id: 401,
-          name: 'Shakib Al Hasan',
-          team: 'BAN',
-          teamName: 'Bangladesh',
-          role: 'All-rounder',
-          battingStyle: 'Left-handed',
-          bowlingStyle: 'Left-arm orthodox',
-          credits: 9.0,
-          image: '/player-images/shakib-al-hasan.jpg',
-          stats: {
-            matches: 310,
-            runs: 7200,
-            wickets: 290,
-            average: 36.8,
-            economy: 4.8
-          }
+    const fetchPlayers = async () => {
+      try {
+        const response = await fetch('/api/teams/1/players');
+        const data = await response.json();
+        
+        if (data.players) {
+          setPlayers(data.players.map((player: any) => ({
+            ...player,
+            stats: {
+              matches: 0,
+              runs: 0,
+              wickets: 0,
+              average: 0,
+              strikeRate: 0
+            }
+          })));
         }
-      ]);
-      
-      setLoading(false);
-    }, 1000);
+
+        // Fetch teams data
+        const teamsResponse = await fetch('/api/teams');
+        const teamsData = await teamsResponse.json();
+        if (teamsData.teams) {
+          setTeams(teamsData.teams.map((team: any) => ({
+            id: team.id,
+            name: team.name
+          })));
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchPlayers();
   }, []);
 
   // Filter players based on search term, team filter, and role filter

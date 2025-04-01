@@ -46,7 +46,7 @@ npm install
 ```
 
 3. Set up environment variables:
-   
+
 Create a `.env` file in the root directory with the following variables:
 
 ```
@@ -134,3 +134,124 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Prisma](https://prisma.io/) - Next-generation ORM
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
 - [SportMonk](https://sportmonk.com/) - Cricket API provider
+
+# SportMonk Cricket API Integration
+
+This repository contains a Next.js application with API routes for fetching cricket data from the SportMonk API and storing it in a PostgreSQL database using Prisma.
+
+## API Structure
+
+The API is organized into separate endpoints for different entity types with clear dependencies between them:
+
+1. **Tournaments** - The foundation of the data hierarchy
+2. **Teams** - Teams can be part of tournaments
+3. **Matches** - Matches belong to tournaments and involve teams
+4. **Players** - Players belong to teams
+
+## API Endpoints
+
+### Tournaments API
+
+- `GET /api/tournaments` - Get all tournaments
+- `GET /api/tournaments/:id` - Get details for a specific tournament
+- `GET /api/tournaments/:id/matches` - Get matches for a specific tournament
+
+### Teams API
+
+- `GET /api/teams` - Get all teams
+- `GET /api/teams?tournament_id=X` - Get teams for a specific tournament
+- `GET /api/teams/:id` - Get details for a specific team
+- `GET /api/teams/:id/players` - Get players for a specific team
+
+### Matches API
+
+- `GET /api/matches` - Get all matches
+- `GET /api/matches?type=upcoming` - Get upcoming matches
+- `GET /api/matches?type=live` - Get live matches
+- `GET /api/matches?type=recent` - Get recent matches
+- `GET /api/matches/:id` - Get details for a specific match
+
+### Players API
+
+- `GET /api/players` - Get all players
+- `GET /api/players?team_id=X` - Get players for a specific team
+- `GET /api/players/:id` - Get details for a specific player
+
+### Import API
+
+- `POST /api/import` - Import data in the correct sequence
+  - Request body:
+    ```json
+    {
+      "entityType": "all", // or "tournaments", "teams", "matches", "players"
+      "tournamentId": "123" // Optional: Specific tournament ID
+    }
+    ```
+
+## Correct Import Sequence
+
+To avoid foreign key constraint errors, import data in this order:
+
+1. **Import tournaments first**
+
+   ```bash
+   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "tournaments"}'
+   ```
+
+2. **Import teams for a tournament**
+
+   ```bash
+   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "teams", "tournamentId": "123"}'
+   ```
+
+3. **Import matches for a tournament**
+
+   ```bash
+   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "matches", "tournamentId": "123"}'
+   ```
+
+4. **Import players for teams in a tournament**
+
+   ```bash
+   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "players", "tournamentId": "123"}'
+   ```
+
+5. **Import everything for a tournament in sequence**
+   ```bash
+   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "all", "tournamentId": "123"}'
+   ```
+
+## Database Schema
+
+The application uses the following database structure:
+
+- **Tournament** - Cricket leagues and tournaments
+- **Team** - Cricket teams
+- **Match** - Cricket matches between teams
+- **Player** - Cricket players belonging to teams
+
+## Setup and Configuration
+
+1. Set up environment variables in `.env`:
+
+   ```
+   DATABASE_URL="postgresql://user:password@localhost:5432/play11"
+   SPORTMONK_API_KEY="your_api_key_here"
+   ```
+
+2. Run database migrations:
+
+   ```
+   npx prisma migrate dev
+   ```
+
+3. Start the development server:
+
+   ```
+   npm run dev
+   ```
+
+4. Import data:
+   ```
+   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "all"}'
+   ```

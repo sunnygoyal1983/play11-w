@@ -24,15 +24,29 @@ model User {
   transactions   Transaction[]
 }
 
+model Tournament {
+  id          String   @id @default(cuid())
+  sportMonkId String   @unique
+  name        String
+  shortName   String?
+  image       String?
+  country     String?
+  season      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  matches     Match[]
+}
+
 model Match {
-  id              String           @id
+  id              String           @id @default(cuid())
   sportMonkId     String           @unique
   name            String
-  format          String // T20, ODI, Test
-  status          String // upcoming, live, completed
+  format          String?
+  status          String   @default("upcoming")
   startTime       DateTime
   endTime         DateTime?
-  venue           String
+  venue           String?
   teamAId         String
   teamAName       String
   teamALogo       String?
@@ -43,29 +57,33 @@ model Match {
   leagueName      String?
   result          String?
   isActive        Boolean          @default(true)
-  contests        Contest[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tournament      Tournament?      @relation(fields: [leagueId], references: [sportMonkId])
   players         MatchPlayer[]
+  contests        Contest[]
   fantasyTeams    FantasyTeam[]
   playerStatistics PlayerStatistic[]
 }
 
 model Player {
-  id             String           @id
-  sportMonkId    String           @unique
-  name           String
-  image          String?
-  imageUrl       String?
-  country        String
-  teamId         String
-  teamName       String
-  role           String // batsman, bowler, all-rounder, wicket-keeper
-  battingStyle   String?
-  bowlingStyle   String?
-  credits        Float            @default(8.0)
-  isActive       Boolean          @default(true)
-  matchPlayers   MatchPlayer[]
+  id          String   @id @default(cuid())
+  sportMonkId String   @unique
+  name        String
+  image       String?
+  country     String?
+  teamId      String?
+  teamName    String?
+  role        String?
+  battingStyle String?
+  bowlingStyle String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  team        Team?    @relation(fields: [teamId], references: [sportMonkId])
+  matchPlayers MatchPlayer[]
+  statistics  PlayerStatistic[]
   fantasyTeamPlayers FantasyTeamPlayer[]
-  playerStatistics PlayerStatistic[]
 }
 
 model MatchPlayer {
@@ -115,31 +133,31 @@ model PrizeBreakup {
 }
 
 model FantasyTeam {
-  id          String               @id @default(uuid())
-  userId      String
-  matchId     String
+  id          String   @id @default(cuid())
   name        String
-  totalPoints Float                @default(0)
+  matchId     String
+  userId      String
   captainId   String
   viceCaptainId String
-  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  match       Match                @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  match       Match    @relation(fields: [matchId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
   players     FantasyTeamPlayer[]
   contestEntries ContestEntry[]
-
-  @@unique([userId, matchId, name])
 }
 
 model FantasyTeamPlayer {
-  id           String      @id @default(uuid())
+  id            String       @id @default(cuid())
   fantasyTeamId String
-  playerId     String
-  isCaptain    Boolean     @default(false)
-  isViceCaptain Boolean     @default(false)
-  fantasyTeam  FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
-  player       Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@unique([fantasyTeamId, playerId])
+  playerId      String
+  isCaptain     Boolean      @default(false)
+  isViceCaptain Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  fantasyTeam   FantasyTeam  @relation(fields: [fantasyTeamId], references: [id])
+  player        Player       @relation(fields: [playerId], references: [id])
 }
 
 model ContestEntry {
@@ -189,4 +207,17 @@ model Transaction {
   reference   String?
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  sportMonkId String   @unique
+  name        String
+  shortName   String?
+  image       String?
+  country     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  players     Player[]
 }
