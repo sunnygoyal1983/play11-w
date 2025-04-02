@@ -32,6 +32,7 @@ model Tournament {
   image       String?
   country     String?
   season      String?
+  seasonId    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

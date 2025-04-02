@@ -16,6 +16,7 @@ import {
   fetchTeamDetails,
   fetchTournamentTeams,
   fetchTeamPlayers,
+  fetchTeamPlayersBySeason,
 } from './teams';
 import {
   fetchMatchDetails,
@@ -42,6 +43,7 @@ export const sportmonkApi = {
     fetchDetails: fetchTeamDetails,
     fetchByTournament: fetchTournamentTeams,
     fetchPlayers: fetchTeamPlayers,
+    fetchPlayersBySeason: fetchTeamPlayersBySeason,
   },
 
   // Match functions

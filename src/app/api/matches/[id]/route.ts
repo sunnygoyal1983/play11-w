@@ -17,8 +17,12 @@ export async function GET(
         venue: true,
         startTime: true,
         status: true,
+        teamAId: true,
         teamAName: true,
+        teamALogo: true,
+        teamBId: true,
         teamBName: true,
+        teamBLogo: true,
         isActive: true,
       },
     });
@@ -27,7 +31,7 @@ export async function GET(
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ match });
+    return NextResponse.json(match);
   } catch (error) {
     console.error('Error fetching match:', error);
     return NextResponse.json(

@@ -87,6 +87,39 @@ export const createMatch = async (match: any) => {
       }
 
       // 4. Now create or update the match
+      // Determine match status based on starting_at date
+      const startingDate = match.starting_at
+        ? new Date(match.starting_at)
+        : new Date();
+      const currentDate = new Date();
+
+      // Default status is 'upcoming' but we'll override it for past and live matches
+      let matchStatus = 'upcoming';
+
+      // If match start date is in the past
+      if (startingDate < currentDate) {
+        // Check if it's marked as completed
+        if (match.status === 'Finished' || match.status === 'finished') {
+          matchStatus = 'completed';
+        } else if (
+          match.status === 'LIVE' ||
+          match.status === 'live' ||
+          match.status === 'inprogress'
+        ) {
+          matchStatus = 'live';
+        } else {
+          // For past matches that don't have a completed status, mark as completed
+          console.log(
+            `Match ${
+              match.id
+            } has past date (${startingDate.toISOString()}) but status '${
+              match.status
+            }'. Setting as completed.`
+          );
+          matchStatus = 'completed';
+        }
+      }
+
       return await tx.match.upsert({
         where: { sportMonkId: match.id.toString() },
         update: {
@@ -94,10 +127,15 @@ export const createMatch = async (match: any) => {
             match.visitorteam?.name || 'TBA'
           }`,
           format: match.type || 'unknown',
-          status: 'upcoming',
-          startTime: match.starting_at
-            ? new Date(match.starting_at)
-            : new Date(),
+          status:
+            match.status === 'Finished'
+              ? 'completed'
+              : match.status === 'LIVE'
+              ? 'live'
+              : matchStatus,
+          startTime: startingDate,
+          // Set endTime for completed matches
+          endTime: matchStatus === 'completed' ? currentDate : undefined,
           venue: match.venue?.name || 'TBA',
           teamAId: match.localteam?.id?.toString() || '',
           teamAName: match.localteam?.name || 'TBA',
@@ -116,10 +154,15 @@ export const createMatch = async (match: any) => {
             match.visitorteam?.name || 'TBA'
           }`,
           format: match.type || 'unknown',
-          status: 'upcoming',
-          startTime: match.starting_at
-            ? new Date(match.starting_at)
-            : new Date(),
+          status:
+            match.status === 'Finished'
+              ? 'completed'
+              : match.status === 'LIVE'
+              ? 'live'
+              : matchStatus,
+          startTime: startingDate,
+          // Set endTime for completed matches
+          endTime: matchStatus === 'completed' ? currentDate : null,
           venue: match.venue?.name || 'TBA',
           teamAId: match.localteam?.id?.toString() || '',
           teamAName: match.localteam?.name || 'TBA',
@@ -167,7 +210,186 @@ export const fetchMatchDetails = async (matchId: number) => {
     const match = data.data;
 
     // Create/update the match
-    await createMatch(match);
+    const createdMatch = await createMatch(match);
+
+    // Process the lineup if it exists
+    if (
+      match.lineup &&
+      Array.isArray(match.lineup) &&
+      match.lineup.length > 0
+    ) {
+      console.log(
+        `Processing ${match.lineup.length} players in lineup for match ${matchId}`
+      );
+
+      // Create a map of players to teams based on the match teams
+      const teamMap = new Map();
+
+      // First populate team mappings from the API response
+      if (match.localteam?.id && match.localteam?.name) {
+        teamMap.set('localteam', {
+          id: match.localteam.id.toString(),
+          name: match.localteam.name,
+        });
+      }
+
+      if (match.visitorteam?.id && match.visitorteam?.name) {
+        teamMap.set('visitorteam', {
+          id: match.visitorteam.id.toString(),
+          name: match.visitorteam.name,
+        });
+      }
+
+      // Process each player in the lineup
+      for (const player of match.lineup) {
+        try {
+          if (!player.id) {
+            console.warn('Skipping player with missing ID in lineup');
+            continue;
+          }
+
+          // Determine team from the lineup structure if team_id is missing
+          let teamId = player.team_id?.toString();
+          let teamName = player.team_name || '';
+
+          // If team_id is missing, try to determine it from other available information
+          if (!teamId) {
+            // First check if the player has a team_id in position
+            if (player.position?.team_id) {
+              teamId = player.position.team_id.toString();
+              console.log(
+                `Using position.team_id for player ${player.id}: ${teamId}`
+              );
+            }
+            // Check if we can determine team from lineup data
+            else if (player.lineup && player.lineup.team_id) {
+              teamId = player.lineup.team_id.toString();
+              console.log(
+                `Using lineup.team_id for player ${player.id}: ${teamId}`
+              );
+            }
+            // If we still don't have a team ID, look for a 'localteam' or 'visitorteam' attribute
+            else if (teamMap.size > 0) {
+              // Try to determine if the player belongs to localteam or visitorteam
+              // This could be from attributes like lineup.team, batting.team_id, etc.
+              if (
+                teamMap.has('localteam') &&
+                (player.lineup?.team === 'home' ||
+                  player.batting?.team_id === match.localteam.id ||
+                  player.bowling?.team_id === match.localteam.id)
+              ) {
+                teamId = teamMap.get('localteam').id;
+                teamName = teamMap.get('localteam').name;
+                console.log(
+                  `Assigned player ${player.id} to localteam: ${teamId}`
+                );
+              } else if (
+                teamMap.has('visitorteam') &&
+                (player.lineup?.team === 'away' ||
+                  player.batting?.team_id === match.visitorteam.id ||
+                  player.bowling?.team_id === match.visitorteam.id)
+              ) {
+                teamId = teamMap.get('visitorteam').id;
+                teamName = teamMap.get('visitorteam').name;
+                console.log(
+                  `Assigned player ${player.id} to visitorteam: ${teamId}`
+                );
+              }
+              // If still no team_id, make an educated guess based on other factors
+              // This is a fallback and might not always be correct
+              else if (teamMap.has('localteam') && teamMap.has('visitorteam')) {
+                // For now, just assign to localteam as a fallback
+                // In a real system, you might want better heuristics
+                teamId = teamMap.get('localteam').id;
+                teamName = teamMap.get('localteam').name;
+                console.log(
+                  `Fallback: assigned player ${player.id} to localteam ${teamId}`
+                );
+              }
+            }
+          }
+
+          if (!teamId) {
+            console.warn(
+              `Skipping player ${player.id} with missing team_id in lineup`
+            );
+            continue;
+          }
+
+          // Create or update the player in the database
+          await prisma.player.upsert({
+            where: { sportMonkId: player.id.toString() },
+            update: {
+              name:
+                player.fullname ||
+                player.firstname + ' ' + player.lastname ||
+                'Unknown Player',
+              image: player.image_path || '',
+              country: player.country_id?.toString() || '',
+              teamId: teamId,
+              teamName: teamName || player.team_name || '',
+              role: (player.position_id || player.position?.name || '')
+                .toString()
+                .toLowerCase(),
+              battingStyle: player.batting_style || '',
+              bowlingStyle: player.bowling_style || '',
+              isActive: true,
+            },
+            create: {
+              id: player.id.toString(),
+              sportMonkId: player.id.toString(),
+              name:
+                player.fullname ||
+                player.firstname + ' ' + player.lastname ||
+                'Unknown Player',
+              image: player.image_path || '',
+              country: player.country_id?.toString() || '',
+              teamId: teamId,
+              teamName: teamName || player.team_name || '',
+              role: (player.position_id || player.position?.name || '')
+                .toString()
+                .toLowerCase(),
+              battingStyle: player.batting_style || '',
+              bowlingStyle: player.bowling_style || '',
+              isActive: true,
+            },
+          });
+
+          // Now create or update the MatchPlayer record
+          await prisma.matchPlayer.upsert({
+            where: {
+              matchId_playerId: {
+                matchId: createdMatch.id,
+                playerId: player.id.toString(),
+              },
+            },
+            update: {
+              teamId: teamId,
+              selected: true,
+              // We could update captain/vice-captain status here if available
+            },
+            create: {
+              matchId: createdMatch.id,
+              playerId: player.id.toString(),
+              teamId: teamId,
+              selected: true,
+              points: 0, // Initial points
+              isCaptain: false, // Default values, can be updated later
+              isViceCaptain: false,
+            },
+          });
+        } catch (error) {
+          console.error(
+            `Error creating match player for ${player.id} in match ${matchId}:`,
+            error
+          );
+        }
+      }
+
+      console.log(`Successfully processed lineup for match ${matchId}`);
+    } else {
+      console.log(`No lineup data available for match ${matchId}`);
+    }
 
     return data;
   } catch (error) {

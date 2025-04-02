@@ -202,3 +202,285 @@ export const storeMatchLineup = async (matchId: number, lineup: any[]) => {
     throw error;
   }
 };
+
+/**
+ * Fetch match players for upcoming matches using the squad API
+ * This fetches players for both teams in a match using the team squad API endpoint
+ */
+export const fetchMatchPlayersFromSquad = async (
+  matchId?: string,
+  limit: number = 10
+) => {
+  try {
+    // Get upcoming matches that don't have players yet
+    const matches = await prisma.match.findMany({
+      where: {
+        ...(matchId ? { id: matchId } : {}),
+        status: 'upcoming',
+        players: {
+          none: {},
+        },
+      },
+      include: {
+        tournament: true,
+      },
+      take: limit,
+      orderBy: {
+        startTime: 'asc',
+      },
+    });
+
+    if (matches.length === 0) {
+      console.log('No upcoming matches without players found');
+      return {
+        success: true,
+        processed: 0,
+        matchesWithPlayers: 0,
+        errors: [],
+      };
+    }
+
+    console.log(`Found ${matches.length} upcoming matches without players`);
+
+    const results = {
+      success: true,
+      processed: matches.length,
+      matchesWithPlayers: 0,
+      errors: [] as { matchId: string; name?: string; error: string }[],
+    };
+
+    // Process each match
+    for (const match of matches) {
+      try {
+        if (!match.tournament?.seasonId) {
+          throw new Error(
+            `Match ${match.id} (${match.name}) has no season ID in its tournament data`
+          );
+        }
+
+        const seasonId = match.tournament.seasonId;
+        const teamIds = [match.teamAId, match.teamBId].filter(Boolean);
+
+        if (teamIds.length < 2) {
+          throw new Error(
+            `Match ${match.id} (${match.name}) is missing team information`
+          );
+        }
+
+        console.log(
+          `Processing match ${match.id} (${
+            match.name
+          }), Season: ${seasonId}, Teams: ${teamIds.join(', ')}`
+        );
+
+        let totalAddedPlayers = 0;
+
+        // Process each team's squad
+        for (const teamId of teamIds) {
+          try {
+            let addedPlayers = 0;
+
+            // Call the squad API endpoint
+            const url = buildApiUrl(`/teams/${teamId}/squad/${seasonId}`, {
+              include: 'player',
+            });
+
+            logApiRequest(url);
+            console.log('Players URL', url); // Log complete URL for debugging
+
+            const response = await rateLimitedFetch(url, {
+              method: 'GET',
+              headers: {
+                Accept: 'application/json',
+              },
+              cache: 'no-store',
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`API Error Response for team squad:`, errorText);
+              throw new Error(`Failed to fetch squad data: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Log squad data structure for debugging
+            console.log(`Squad data structure for team ${teamId}:`, {
+              hasData: !!data?.data,
+              squadType: data?.data?.squad
+                ? typeof data.data.squad
+                : 'undefined',
+              squadLength: Array.isArray(data?.data?.squad)
+                ? data.data.squad.length
+                : 0,
+              keys: data?.data ? Object.keys(data.data) : [],
+            });
+
+            // Handle different possible data structures
+            let squad = [];
+
+            if (data?.data?.squad && Array.isArray(data.data.squad)) {
+              squad = data.data.squad;
+            } else if (data?.data && Array.isArray(data.data)) {
+              // Some endpoints might return array at the top level
+              squad = data.data;
+            } else {
+              console.warn(
+                `Unexpected squad data structure for team ${teamId}`
+              );
+            }
+
+            if (squad.length === 0) {
+              console.warn(`Empty squad returned for team ${teamId}`);
+              continue;
+            }
+
+            console.log(
+              `Processing ${squad.length} players in squad for team ${teamId}`
+            );
+
+            // Process each player in the squad
+            for (const squadMember of squad) {
+              try {
+                // Different possible squad data structures
+                let player;
+                if (squadMember.player) {
+                  // Normal structure: { player: { id, name, ... } }
+                  player = squadMember.player;
+                } else if (squadMember.id) {
+                  // Player info directly in the squad item
+                  player = squadMember;
+                } else {
+                  console.warn(
+                    'Invalid player data in squad, skipping...',
+                    squadMember
+                  );
+                  continue;
+                }
+
+                if (!player.id) {
+                  console.warn('Player missing ID, skipping...');
+                  continue;
+                }
+
+                console.log(
+                  `Processing player: ${player.id} - ${
+                    player.fullname || player.firstname
+                  }`
+                );
+
+                // Get or set player name
+                const playerName =
+                  player.fullname ||
+                  (player.firstname && player.lastname
+                    ? `${player.firstname} ${player.lastname}`
+                    : null) ||
+                  `Player ${player.id}`;
+
+                // Create or update the player record
+                const createdPlayer = await prisma.player.upsert({
+                  where: { sportMonkId: player.id.toString() },
+                  update: {
+                    name: playerName,
+                    image: player.image_path || '',
+                    country: player.country_id?.toString() || '',
+                    teamId: teamId,
+                    teamName: data.data.name || '',
+                    role: (player.position?.name || '').toLowerCase(),
+                    battingStyle: player.batting_style || '',
+                    bowlingStyle: player.bowling_style || '',
+                    isActive: true,
+                  },
+                  create: {
+                    id: player.id.toString(),
+                    sportMonkId: player.id.toString(),
+                    name: playerName,
+                    image: player.image_path || '',
+                    country: player.country_id?.toString() || '',
+                    teamId: teamId,
+                    teamName: data.data.name || '',
+                    role: (player.position?.name || '').toLowerCase(),
+                    battingStyle: player.batting_style || '',
+                    bowlingStyle: player.bowling_style || '',
+                    isActive: true,
+                  },
+                });
+
+                // Create the match player connection
+                await prisma.matchPlayer.upsert({
+                  where: {
+                    matchId_playerId: {
+                      matchId: match.id,
+                      playerId: createdPlayer.id,
+                    },
+                  },
+                  update: {
+                    teamId: teamId,
+                    // Keep existing values
+                  },
+                  create: {
+                    matchId: match.id,
+                    playerId: createdPlayer.id,
+                    teamId: teamId,
+                    selected: false, // Will be updated when lineup is available
+                    points: 0,
+                    isCaptain: false,
+                    isViceCaptain: false,
+                  },
+                });
+
+                addedPlayers++;
+                console.log(
+                  `Added player ${player.id} (${playerName}) to match ${match.id}`
+                );
+              } catch (playerError) {
+                console.error(
+                  `Error processing player for match ${match.id}:`,
+                  playerError
+                );
+              }
+            }
+
+            totalAddedPlayers += addedPlayers;
+            console.log(
+              `Added ${addedPlayers} players from team ${teamId} to match ${match.id}`
+            );
+          } catch (teamError) {
+            console.error(
+              `Error processing team ${teamId} for match ${match.id}:`,
+              teamError
+            );
+            results.errors.push({
+              matchId: match.id,
+              name: match.name,
+              error: `Team ${teamId} error: ${
+                teamError instanceof Error
+                  ? teamError.message
+                  : String(teamError)
+              }`,
+            });
+          }
+        }
+
+        if (totalAddedPlayers > 0) {
+          results.matchesWithPlayers++;
+        }
+      } catch (matchError) {
+        console.error(`Error processing match ${match.id}:`, matchError);
+        results.errors.push({
+          matchId: match.id,
+          name: match.name,
+          error:
+            matchError instanceof Error
+              ? matchError.message
+              : String(matchError),
+        });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error fetching match players from squad:', error);
+    throw error;
+  }
+};

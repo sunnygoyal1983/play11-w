@@ -3,8 +3,16 @@ import { buildApiUrl, rateLimitedFetch, prisma, logApiRequest } from './utils';
 /**
  * Fetch all tournaments/leagues
  */
-export const fetchTournaments = async (page = 1, perPage = 50) => {
+export const fetchTournaments = async (page = 1, perPage = 100) => {
   try {
+    console.log(
+      'Fetching tournaments (page:',
+      page,
+      ', perPage:',
+      perPage,
+      ')'
+    );
+
     const url = buildApiUrl('/leagues', {
       include: 'season,country',
       sort: '-name',
@@ -23,15 +31,39 @@ export const fetchTournaments = async (page = 1, perPage = 50) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API Error Response for tournaments:`, errorText);
-      return null;
+      console.error('API Error Response for tournaments:', errorText);
+      throw new Error(
+        `Failed to fetch tournaments: ${response.status} ${response.statusText} - ${errorText}`
+      );
     }
 
     const data = await response.json();
+    console.log('Received tournaments:', data.data?.length || 0);
 
     // Store tournaments in database
     const tournaments = data.data;
     for (const tournament of tournaments) {
+      // Get the season ID if available
+      const seasonId = tournament.season?.id?.toString() || '';
+      if (seasonId) {
+        console.log(`Tournament ${tournament.name} has season ID: ${seasonId}`);
+
+        // Store the season ID in the database directly using raw SQL
+        // This avoids the Prisma client validation errors
+        try {
+          await prisma.$executeRawUnsafe(`
+            UPDATE "Tournament" 
+            SET "seasonId" = '${seasonId}'
+            WHERE "sportMonkId" = '${tournament.id?.toString() || ''}'
+          `);
+        } catch (sqlError) {
+          console.error(
+            `Error storing season ID for tournament ${tournament.name}:`,
+            sqlError
+          );
+        }
+      }
+
       await prisma.tournament.upsert({
         where: { sportMonkId: tournament.id?.toString() || '' },
         update: {
@@ -99,6 +131,26 @@ export const fetchTournamentDetails = async (tournamentId: number) => {
     }
 
     // Create or update tournament in the database
+    const seasonId = tournament.season?.id?.toString() || '';
+    if (seasonId) {
+      console.log(`Tournament ${tournament.name} has season ID: ${seasonId}`);
+
+      // Store the season ID in the database directly using raw SQL
+      // This avoids the Prisma client validation errors
+      try {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "Tournament" 
+          SET "seasonId" = '${seasonId}'
+          WHERE "sportMonkId" = '${tournament.id?.toString() || ''}'
+        `);
+      } catch (sqlError) {
+        console.error(
+          `Error storing season ID for tournament ${tournament.name}:`,
+          sqlError
+        );
+      }
+    }
+
     await prisma.tournament.upsert({
       where: { sportMonkId: tournament.id?.toString() || '' },
       update: {

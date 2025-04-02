@@ -3,10 +3,6 @@ import { PrismaClient } from '@prisma/client';
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
-// API configuration
-const API_BASE_URL = 'https://cricket.sportmonks.com/api/v2.0';
-const API_KEY = process.env.SPORTMONK_API_KEY;
-
 // Rate limiting configuration
 export const API_RATE_LIMIT = {
   requestDelay: 1000, // 1 second between requests
@@ -18,23 +14,43 @@ export const API_RATE_LIMIT = {
 export const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-// Build API URL with parameters
-export const buildApiUrl = (
+// API URL Builder with Enhanced Logging
+export function buildApiUrl(
   endpoint: string,
-  params: Record<string, string> = {}
-) => {
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
-
-  // Add API key
-  url.searchParams.append('api_token', API_KEY || '');
-
-  // Add other parameters
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.append(key, value);
+  params?: Record<string, string | number | undefined>
+): string {
+  if (!process.env.SPORTMONK_API_KEY) {
+    console.error('CRITICAL: Cricket API token is not configured');
+    throw new Error('Cricket API token is not configured');
   }
 
+  console.log(
+    'Using API key length:',
+    process.env.SPORTMONK_API_KEY.length,
+    'Last 4 chars:',
+    process.env.SPORTMONK_API_KEY.slice(-4)
+  );
+
+  const url = new URL(`https://cricket.sportmonks.com/api/v2.0${endpoint}`);
+
+  // Add API token
+  url.searchParams.append('api_token', process.env.SPORTMONK_API_KEY);
+
+  // Add additional parameters
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+  }
+
+  console.log(
+    'Built API URL:',
+    url.toString().replace(process.env.SPORTMONK_API_KEY, '***')
+  );
   return url.toString();
-};
+}
 
 // Enhanced fetch function with rate limiting and retries
 export async function rateLimitedFetch(
@@ -109,8 +125,62 @@ export const getDateRange = (daysBack = 0) => {
 
 // Log API request with masked API key
 export const logApiRequest = (url: string) => {
-  console.log('Making API request to:', url.replace(API_KEY || '', '***'));
+  console.log(
+    'Making API request to:',
+    url.replace(process.env.SPORTMONK_API_KEY || '', '***')
+  );
 };
 
 // Export prisma for use in all services
 export { prisma };
+
+/**
+ * Fetch players for a specific season in a tournament
+ * This is helpful when we need to get current players for a league in this season
+ */
+export async function fetchSeasonPlayers(
+  seasonId: string,
+  page = 1,
+  perPage = 100
+) {
+  try {
+    if (!seasonId) {
+      throw new Error('Season ID is required to fetch season players');
+    }
+
+    console.log(`Fetching players for season ${seasonId}`);
+
+    const url = buildApiUrl('/squads/season', {
+      filter: `season_id:${seasonId}`,
+      include: 'team,player',
+      page: page.toString(),
+      per_page: perPage.toString(),
+    });
+
+    logApiRequest(url);
+    const response = await rateLimitedFetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API Error Response for season players:`, errorText);
+      throw new Error(
+        `Failed to fetch season players: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log(
+      `Received ${data.data?.length || 0} squads for season ${seasonId}`
+    );
+    return data;
+  } catch (error) {
+    console.error(`Error fetching players for season ${seasonId}:`, error);
+    throw error;
+  }
+}

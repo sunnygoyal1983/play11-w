@@ -1,23 +1,27 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
-import { 
-  FaTachometerAlt, 
-  FaUsers, 
-  FaTrophy, 
-  FaFutbol, 
+import { useSession, signOut } from 'next-auth/react';
+import {
+  FaTachometerAlt,
+  FaUsers,
+  FaTrophy,
+  FaFutbol,
   FaUserFriends,
   FaSignOutAlt,
   FaBars,
   FaTimes,
-  FaShieldAlt
+  FaShieldAlt,
 } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -38,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     // Check if user is authenticated and is an admin
     if (status === 'loading') return;
-    
+
     // For now, we'll consider all authenticated users as admins
     // In a real app, you would check a specific admin flag or role
     if (status === 'unauthenticated') {
@@ -49,6 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [status, router]);
 
   const isActive = (path: string) => {
+    if (!pathname) return false;
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 
@@ -65,16 +70,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar for desktop */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-indigo-800 text-white transform ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } md:translate-x-0 transition-transform duration-300 ease-in-out`}>
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-indigo-800 text-white transform ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0 transition-transform duration-300 ease-in-out`}
+      >
         <div className="flex items-center justify-between h-16 px-4 border-b border-indigo-700">
-          <Link href="/admin" className="flex items-center space-x-2 text-xl font-bold">
+          <Link
+            href="/admin"
+            className="flex items-center space-x-2 text-xl font-bold"
+          >
             <MdSportsCricket size={24} />
             <span>Play11 Admin</span>
           </Link>
-          <button 
-            className="md:hidden text-white focus:outline-none" 
+          <button
+            className="md:hidden text-white focus:outline-none"
             onClick={() => setSidebarOpen(false)}
           >
             <FaTimes size={20} />
@@ -107,7 +117,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             View Site
           </Link>
           <button
-            onClick={() => {/* signOut() */}}
+            onClick={() => signOut({ callbackUrl: '/' })}
             className="flex items-center w-full px-4 py-2 mt-1 text-sm font-medium text-indigo-100 hover:bg-indigo-700 rounded-md"
           >
             <FaSignOutAlt className="mr-3 h-5 w-5" />

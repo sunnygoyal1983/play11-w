@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sportmonkApi, prisma } from '@/services/sportmonk';
+import { Prisma } from '@prisma/client';
 
 // GET /api/matches
 export async function GET(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const page = parseInt(searchParams.get('page') || '1');
     const perPage = parseInt(searchParams.get('per_page') || '10');
+    const isAdmin = searchParams.get('admin') === 'true';
 
     // Different endpoints based on type
     if (type === 'live') {
@@ -30,10 +32,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // If no type specified, get matches from database
+    // Query params for database fetch
+    const whereClause = { isActive: true };
+    const orderByClause = { startTime: 'desc' as Prisma.SortOrder };
+
+    // If admin view, fetch all matches without pagination
+    if (isAdmin) {
+      console.log('Admin view: Fetching all matches without pagination');
+      const matches = await prisma.match.findMany({
+        where: whereClause,
+        orderBy: orderByClause,
+        // No take or skip for admin view to fetch all matches
+      });
+
+      console.log(`Retrieved ${matches.length} total matches for admin view`);
+      return NextResponse.json({
+        success: true,
+        data: matches,
+      });
+    }
+
+    // Non-admin view with pagination
     const matches = await prisma.match.findMany({
-      where: { isActive: true },
-      orderBy: { startTime: 'desc' },
+      where: whereClause,
+      orderBy: orderByClause,
       take: perPage,
       skip: (page - 1) * perPage,
     });
