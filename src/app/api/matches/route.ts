@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sportmonkApi, prisma } from '@/services/sportmonk';
+import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
 // GET /api/matches
@@ -11,30 +11,18 @@ export async function GET(request: NextRequest) {
     const perPage = parseInt(searchParams.get('per_page') || '10');
     const isAdmin = searchParams.get('admin') === 'true';
 
-    // Different endpoints based on type
-    if (type === 'live') {
-      const matches = await sportmonkApi.matches.fetchLive(page, perPage);
-      return NextResponse.json({
-        success: true,
-        data: matches,
-      });
-    } else if (type === 'recent') {
-      const matches = await sportmonkApi.matches.fetchRecent(page, perPage);
-      return NextResponse.json({
-        success: true,
-        data: matches,
-      });
-    } else if (type === 'upcoming') {
-      const matches = await sportmonkApi.matches.fetchUpcoming(page, perPage);
-      return NextResponse.json({
-        success: true,
-        data: matches,
-      });
-    }
-
-    // Query params for database fetch
-    const whereClause = { isActive: true };
+    // Base query params for database fetch
+    let whereClause: any = { isActive: true };
     const orderByClause = { startTime: 'desc' as Prisma.SortOrder };
+
+    // Apply filters based on match type
+    if (type === 'live') {
+      whereClause.status = 'live';
+    } else if (type === 'recent' || type === 'completed') {
+      whereClause.status = 'completed';
+    } else if (type === 'upcoming') {
+      whereClause.status = 'upcoming';
+    }
 
     // If admin view, fetch all matches without pagination
     if (isAdmin) {
@@ -55,7 +43,10 @@ export async function GET(request: NextRequest) {
     // Non-admin view with pagination
     const matches = await prisma.match.findMany({
       where: whereClause,
-      orderBy: orderByClause,
+      orderBy:
+        type === 'upcoming'
+          ? { startTime: 'asc' as Prisma.SortOrder }
+          : orderByClause,
       take: perPage,
       skip: (page - 1) * perPage,
     });
@@ -82,25 +73,29 @@ export async function getById(
   { params }: { params: { id: string } }
 ) {
   try {
-    const matchId = parseInt(params.id);
-    if (isNaN(matchId)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid match ID',
+    // Check if match exists in database by id
+    const match = await prisma.match.findUnique({
+      where: { id: params.id },
+      include: {
+        contests: {
+          select: {
+            id: true,
+            name: true,
+            entryFee: true,
+            totalSpots: true,
+            filledSpots: true,
+            prizePool: true,
+            totalPrize: true,
+            firstPrize: true,
+            winnerPercentage: true,
+            isGuaranteed: true,
+            winnerCount: true,
+          },
         },
-        { status: 400 }
-      );
-    }
-
-    // First check if match exists in database
-    const existingMatch = await prisma.match.findUnique({
-      where: { sportMonkId: matchId.toString() },
+      },
     });
 
-    // Fetch fresh data from API regardless
-    const match = await sportmonkApi.matches.fetchDetails(matchId);
-    if (!match && !existingMatch) {
+    if (!match) {
       return NextResponse.json(
         {
           success: false,
@@ -112,7 +107,7 @@ export async function getById(
 
     return NextResponse.json({
       success: true,
-      data: match || existingMatch,
+      data: match,
     });
   } catch (error) {
     console.error(`Error fetching match details:`, error);

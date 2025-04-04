@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
 import { FaEnvelope, FaLock, FaExclamationCircle } from 'react-icons/fa';
@@ -15,14 +15,27 @@ interface SignInFormData {
 
 export default function SignIn() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const { 
-    register, 
-    handleSubmit, 
-    formState: { errors } 
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
   } = useForm<SignInFormData>();
+
+  // Check for error params
+  useEffect(() => {
+    const errorParam = searchParams?.get('error');
+    if (errorParam === 'AdminRequired') {
+      setError(
+        'You need admin permissions to access this area. Please log in with an admin account.'
+      );
+    } else if (errorParam === 'AdminCheckFailed') {
+      setError('Failed to verify admin permissions. Please try again.');
+    }
+  }, [searchParams]);
 
   const onSubmit = async (data: SignInFormData) => {
     setIsLoading(true);
@@ -60,15 +73,20 @@ export default function SignIn() {
               className="mx-auto"
             />
           </Link>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
           <p className="mt-2 text-sm text-gray-600">
             Or{' '}
-            <Link href="/auth/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+            <Link
+              href="/auth/signup"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
               create a new account
             </Link>
           </p>
         </div>
-        
+
         {error && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
             <div className="flex items-center">
@@ -77,7 +95,7 @@ export default function SignIn() {
             </div>
           </div>
         )}
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div className="relative mb-4">
@@ -88,12 +106,12 @@ export default function SignIn() {
                 id="email"
                 type="email"
                 autoComplete="email"
-                {...register('email', { 
+                {...register('email', {
                   required: 'Email is required',
                   pattern: {
                     value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Invalid email address'
-                  }
+                    message: 'Invalid email address',
+                  },
                 })}
                 className={`appearance-none rounded-md relative block w-full px-3 py-3 pl-10 border ${
                   errors.email ? 'border-red-300' : 'border-gray-300'
@@ -101,10 +119,12 @@ export default function SignIn() {
                 placeholder="Email address"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.email.message}
+                </p>
               )}
             </div>
-            
+
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <FaLock className="h-5 w-5 text-gray-400" />
@@ -120,7 +140,9 @@ export default function SignIn() {
                 placeholder="Password"
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.password.message}
+                </p>
               )}
             </div>
           </div>
@@ -133,13 +155,19 @@ export default function SignIn() {
                 type="checkbox"
                 className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+              <label
+                htmlFor="remember-me"
+                className="ml-2 block text-sm text-gray-900"
+              >
                 Remember me
               </label>
             </div>
 
             <div className="text-sm">
-              <Link href="/auth/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
+              <Link
+                href="/auth/forgot-password"
+                className="font-medium text-indigo-600 hover:text-indigo-500"
+              >
                 Forgot your password?
               </Link>
             </div>

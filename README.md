@@ -255,3 +255,132 @@ The application uses the following database structure:
    ```
    curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "all"}'
    ```
+
+## Setup Instructions
+
+### Database Setup
+
+Before running the application, you need to set up the database:
+
+1. Make sure you have PostgreSQL installed and running
+2. Create a database for the application
+3. Update the `.env` file with your database credentials
+
+### Running Migrations
+
+To set up the database schema and apply all migrations, run:
+
+```bash
+node scripts/apply-migrations.js
+```
+
+This script will:
+
+1. Check for a `.env` file and create one if it doesn't exist
+2. Run Prisma migrations to create all required tables
+3. Create a default admin user if one doesn't exist
+
+### Fixing Admin Access Issues
+
+If you encounter "Unauthorized: Admin access required" errors:
+
+1. Run the admin user update script:
+
+   ```bash
+   npx ts-node scripts/update-admin-users.ts
+   ```
+
+2. Create a default admin user:
+
+   ```bash
+   npx ts-node scripts/create-admin-user.ts
+   ```
+
+3. Log out and log back in with the admin credentials:
+   - Email: admin@play11.com
+   - Password: admin123
+
+### Running the Application
+
+To start the development server:
+
+```bash
+npm run dev
+```
+
+The application will be available at http://localhost:3000
+
+## Admin Interface
+
+The admin interface is available at `/admin` and provides access to:
+
+- User management
+- Contest management
+- Match management
+- System settings
+- Transaction monitoring
+
+## Database Models
+
+The application uses the following main models:
+
+- Users & Authentication
+- Tournaments & Matches
+- Players & Teams
+- Contests & Entries
+- Transactions & Wallet Management
+- System Settings
+
+## Fixing Settings Functionality
+
+If you're experiencing the "Cannot read properties of undefined (reading 'findMany')" error when trying to access the admin settings page, it's because the Settings table hasn't been added to your database. This happens because the Setting model needs to be defined in your Prisma schema and migrated to your database.
+
+### Automatic Fix
+
+We've created a helper script to automatically fix this issue:
+
+```bash
+node scripts/fix-settings-table.js
+```
+
+This script will:
+
+1. Add the Setting model to your Prisma schema if it doesn't exist
+2. Generate the Prisma client
+3. Create and run a migration to add the Settings table to your database
+
+### Manual Fix
+
+If the automatic script doesn't work, you can follow these steps:
+
+1. Add the Setting model to your `prisma/schema.prisma` file:
+
+```prisma
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        String   @default("string") // string, number, boolean, json
+  category    String   @default("general")
+  description String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+```
+
+2. Generate the Prisma client:
+
+```bash
+npx prisma generate
+```
+
+3. Create and run a migration:
+
+```bash
+npx prisma migrate dev --name add_settings_model
+```
+
+4. Restart your development server.
+
+After following these steps, you should be able to access the admin settings page without errors.

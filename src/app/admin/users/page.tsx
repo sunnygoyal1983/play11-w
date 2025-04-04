@@ -1,96 +1,108 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaWallet, FaLock } from 'react-icons/fa';
+import {
+  FaPlus,
+  FaEdit,
+  FaTrash,
+  FaSearch,
+  FaFilter,
+  FaWallet,
+  FaLock,
+} from 'react-icons/fa';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  joinedAt: string;
+  walletBalance: number;
+  teamsCount: number;
+  contestsJoined: number;
+  status: string;
+}
 
 export default function AdminUsers() {
-  const [users, setUsers] = useState([]);
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
 
+  // Check authorization
   useEffect(() => {
-    // Simulate fetching users data
-    setTimeout(() => {
-      setUsers([
-        { 
-          id: 1, 
-          name: 'John Doe', 
-          email: 'john@example.com', 
-          joinedAt: '2025-03-28T10:30:00Z', 
-          walletBalance: 500,
-          teamsCount: 5,
-          contestsJoined: 12,
-          status: 'active'
-        },
-        { 
-          id: 2, 
-          name: 'Jane Smith', 
-          email: 'jane@example.com', 
-          joinedAt: '2025-03-27T14:45:00Z', 
-          walletBalance: 750,
-          teamsCount: 3,
-          contestsJoined: 8,
-          status: 'active'
-        },
-        { 
-          id: 3, 
-          name: 'Robert Johnson', 
-          email: 'robert@example.com', 
-          joinedAt: '2025-03-26T09:15:00Z', 
-          walletBalance: 1200,
-          teamsCount: 7,
-          contestsJoined: 15,
-          status: 'active'
-        },
-        { 
-          id: 4, 
-          name: 'Emily Davis', 
-          email: 'emily@example.com', 
-          joinedAt: '2025-03-25T16:20:00Z', 
-          walletBalance: 300,
-          teamsCount: 2,
-          contestsJoined: 4,
-          status: 'active'
-        },
-        { 
-          id: 5, 
-          name: 'Michael Wilson', 
-          email: 'michael@example.com', 
-          joinedAt: '2025-03-24T11:10:00Z', 
-          walletBalance: 850,
-          teamsCount: 4,
-          contestsJoined: 10,
-          status: 'inactive'
-        }
-      ]);
+    // Redirect if not logged in
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
+
+  // Fetch real users data
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchUsers();
+    }
+  }, [status]);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/admin/users');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch users');
+      }
+
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError(
+        error instanceof Error ? error.message : 'Failed to fetch users'
+      );
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
 
   // Filter and sort users
-  const filteredUsers = users.filter((user: any) => {
-    return user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           user.email.toLowerCase().includes(searchTerm.toLowerCase());
-  }).sort((a: any, b: any) => {
-    switch (sortBy) {
-      case 'newest':
-        return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime();
-      case 'oldest':
-        return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
-      case 'name_asc':
-        return a.name.localeCompare(b.name);
-      case 'name_desc':
-        return b.name.localeCompare(a.name);
-      case 'wallet_high':
-        return b.walletBalance - a.walletBalance;
-      case 'wallet_low':
-        return a.walletBalance - b.walletBalance;
-      default:
-        return 0;
-    }
-  });
+  const filteredUsers = users
+    .filter((user: User) => {
+      return (
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    })
+    .sort((a: User, b: User) => {
+      switch (sortBy) {
+        case 'newest':
+          return (
+            new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+          );
+        case 'oldest':
+          return (
+            new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+          );
+        case 'name_asc':
+          return a.name.localeCompare(b.name);
+        case 'name_desc':
+          return b.name.localeCompare(a.name);
+        case 'wallet_high':
+          return b.walletBalance - a.walletBalance;
+        case 'wallet_low':
+          return a.walletBalance - b.walletBalance;
+        default:
+          return 0;
+      }
+    });
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -103,10 +115,25 @@ export default function AdminUsers() {
     }
   };
 
-  if (loading) {
+  if (status === 'loading' || loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border-l-4 border-red-500 p-4 my-6">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <FaTrash className="h-5 w-5 text-red-400" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -115,15 +142,15 @@ export default function AdminUsers() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Manage Users</h1>
-        <Link 
-          href="/admin/users/create" 
+        <Link
+          href="/admin/users/create"
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md flex items-center"
         >
           <FaPlus className="mr-2" />
           Add User
         </Link>
       </div>
-      
+
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -139,7 +166,7 @@ export default function AdminUsers() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           <div className="flex items-center">
             <FaFilter className="text-gray-400 mr-2" />
             <select
@@ -157,7 +184,7 @@ export default function AdminUsers() {
           </div>
         </div>
       </div>
-      
+
       {/* Users Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
@@ -190,15 +217,20 @@ export default function AdminUsers() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td
+                    colSpan={7}
+                    className="px-6 py-4 text-center text-gray-500"
+                  >
                     No users found
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user: any) => (
+                filteredUsers.map((user: User) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {user.name}
+                      </div>
                       <div className="text-xs text-gray-500">{user.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -208,7 +240,7 @@ export default function AdminUsers() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-green-600">
-                        ₹{user.walletBalance}
+                        ₹{user.walletBalance.toFixed(2)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -218,31 +250,40 @@ export default function AdminUsers() {
                       {user.contestsJoined}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(user.status)}`}>
-                        {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(
+                          user.status
+                        )}`}
+                      >
+                        {user.status.charAt(0).toUpperCase() +
+                          user.status.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <Link 
+                        <Link
                           href={`/admin/users/${user.id}/edit`}
                           className="text-indigo-600 hover:text-indigo-900"
                           title="Edit User"
                         >
                           <FaEdit />
                         </Link>
-                        <Link 
+                        <Link
                           href={`/admin/users/${user.id}/wallet`}
                           className="text-green-600 hover:text-green-900"
                           title="Manage Wallet"
                         >
                           <FaWallet />
                         </Link>
-                        <button 
+                        <button
                           className="text-yellow-600 hover:text-yellow-900"
                           title="Reset Password"
                           onClick={() => {
-                            if (window.confirm('Are you sure you want to reset this user\'s password?')) {
+                            if (
+                              window.confirm(
+                                "Are you sure you want to reset this user's password?"
+                              )
+                            ) {
                               // Reset password logic would go here
                               console.log('Reset password for user', user.id);
                             }
@@ -250,11 +291,15 @@ export default function AdminUsers() {
                         >
                           <FaLock />
                         </button>
-                        <button 
+                        <button
                           className="text-red-600 hover:text-red-900"
                           title="Delete User"
                           onClick={() => {
-                            if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+                            if (
+                              window.confirm(
+                                'Are you sure you want to delete this user? This action cannot be undone.'
+                              )
+                            ) {
                               // Delete user logic would go here
                               console.log('Delete user', user.id);
                             }

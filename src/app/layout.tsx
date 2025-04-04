@@ -1,10 +1,8 @@
-"use client";
-
 import './globals.css';
-import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import SessionWrapper from '@/components/SessionWrapper';
-import ToastWrapper from '@/components/ToastWrapper';
+import { Providers } from './provider';
+import type { Metadata } from 'next';
+import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -12,6 +10,12 @@ export const metadata: Metadata = {
   title: 'Play11 - Fantasy Cricket Platform',
   description: 'Create your fantasy cricket team and compete with others',
 };
+
+// Move live scoring initialization to a separate file
+import { initLiveScoring } from '@/lib/init-live-scoring';
+
+// Try to initialize the live scoring
+initLiveScoring();
 
 export default function RootLayout({
   children,
@@ -21,10 +25,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <SessionWrapper>
-          {children}
-        </SessionWrapper>
-        <ToastWrapper />
+        <Providers>{children}</Providers>
+        <Toaster position="top-right" />
       </body>
     </html>
   );

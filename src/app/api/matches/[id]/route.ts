@@ -1,73 +1,61 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const matchId = params.id;
+    console.log(`Fetching match with ID: ${matchId}`);
+
+    // Check if match exists in database by id
     const match = await prisma.match.findUnique({
-      where: {
-        id: params.id,
-      },
-      select: {
-        id: true,
-        name: true,
-        format: true,
-        venue: true,
-        startTime: true,
-        status: true,
-        teamAId: true,
-        teamAName: true,
-        teamALogo: true,
-        teamBId: true,
-        teamBName: true,
-        teamBLogo: true,
-        isActive: true,
+      where: { id: matchId },
+      include: {
+        contests: {
+          select: {
+            id: true,
+            name: true,
+            entryFee: true,
+            totalSpots: true,
+            filledSpots: true,
+            prizePool: true,
+            totalPrize: true,
+            firstPrize: true,
+            winnerPercentage: true,
+            isGuaranteed: true,
+            winnerCount: true,
+          },
+        },
       },
     });
 
     if (!match) {
-      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+      console.error(`Match not found: ${matchId}`);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Match not found',
+        },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json(match);
-  } catch (error) {
-    console.error('Error fetching match:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch match' },
-      { status: 500 }
+    console.log(
+      `Match found: ${match.name} with ${match.contests?.length || 0} contests`
     );
-  }
-}
-
-export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const body = await request.json();
-
-    const updatedMatch = await prisma.match.update({
-      where: {
-        id: params.id,
-      },
-      data: {
-        name: body.name,
-        format: body.format,
-        venue: body.venue,
-        startTime: body.startTime,
-        status: body.status,
-        teamAName: body.teamAName,
-        teamBName: body.teamBName,
-      },
+    return NextResponse.json({
+      success: true,
+      data: match,
     });
-
-    return NextResponse.json({ match: updatedMatch });
   } catch (error) {
-    console.error('Error updating match:', error);
+    console.error('Error fetching match details:', error);
     return NextResponse.json(
-      { error: 'Failed to update match' },
+      {
+        success: false,
+        error: 'Failed to fetch match details',
+      },
       { status: 500 }
     );
   }

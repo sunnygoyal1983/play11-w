@@ -1,45 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+const prismaClient = new PrismaClient();
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
+    const contestId = params.id;
+
+    // Fetch contest with all relevant data
     const contest = await prisma.contest.findUnique({
-      where: { id: params.id },
+      where: { id: contestId },
       include: {
         match: true,
-        entries: true,
+        entries: {
+          select: {
+            id: true,
+            rank: true,
+            fantasyTeamId: true,
+            fantasyTeam: {
+              select: {
+                name: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!contest) {
-      return NextResponse.json({ error: 'Contest not found' }, { status: 404 });
+      return new NextResponse(JSON.stringify({ error: 'Contest not found' }), {
+        status: 404,
+      });
     }
 
-    const now = new Date();
-    const matchStartTime = new Date(contest.match.startTime);
-    const matchEndTime = new Date(contest.match.endTime);
+    // Add the filled spots to the response
+    const filledSpots = contest.entries.length;
 
-    let status = 'upcoming';
-    if (now >= matchStartTime && now <= matchEndTime) {
-      status = 'live';
-    } else if (now > matchEndTime) {
-      status = 'completed';
-    }
-
-    const contestWithStatus = {
+    // Format the response
+    return NextResponse.json({
       ...contest,
-      status,
-      filledSpots: contest.entries.length,
-      matchName: contest.match.name,
-    };
-
-    return NextResponse.json(contestWithStatus);
+      filledSpots,
+    });
   } catch (error) {
     console.error('Error fetching contest:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch contest' },
+    return new NextResponse(
+      JSON.stringify({ error: 'Failed to fetch contest details' }),
       { status: 500 }
     );
   }

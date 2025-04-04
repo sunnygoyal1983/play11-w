@@ -10,12 +10,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id             String           @id @default(uuid())
   name           String
   email          String           @unique
   password       String
   image          String?
+  phone          String?
+  address        String?
+  dob            DateTime?
+  panNumber      String?
+  kycVerified    Boolean          @default(false)
+  role           UserRole         @default(USER)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   walletBalance  Float            @default(0)
@@ -168,6 +179,7 @@ model ContestEntry {
   fantasyTeamId String
   rank        Int?
   winAmount   Float?      @default(0)
+  points      Float?      @default(0)
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   contest     Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
   fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
@@ -221,4 +233,16 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   players     Player[]
+}
+
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        String   @default("string") // string, number, boolean, json
+  category    String   @default("general")
+  description String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -1,92 +1,305 @@
-"use client";
+'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import MainLayout from '@/components/MainLayout';
 import { FaWallet, FaMoneyBillWave, FaTrophy, FaHistory } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import Script from 'next/script';
+
+// Define types for the wallet data
+interface Transaction {
+  id: string;
+  userId: string;
+  amount: number;
+  type: string;
+  status: string;
+  reference?: string;
+  createdAt: string;
+}
+
+interface WalletData {
+  totalBalance: number;
+  depositedAmount: number;
+  winnings: number;
+  bonus: number;
+  kycVerified: boolean;
+  transactions: Transaction[];
+}
+
+// Declare Razorpay as a global type
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 export default function Wallet() {
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState('balance');
-  
-  // Placeholder wallet data
-  const walletData = {
-    totalBalance: 1250,
-    depositedAmount: 1000,
-    winnings: 250,
-    bonus: 100,
-    transactions: [
-      {
-        id: 1,
-        type: 'deposit',
-        amount: 500,
-        status: 'success',
-        date: '2025-03-25T10:30:00Z',
-        description: 'Added via UPI'
-      },
-      {
-        id: 2,
-        type: 'deposit',
-        amount: 500,
-        status: 'success',
-        date: '2025-03-20T15:45:00Z',
-        description: 'Added via Credit Card'
-      },
-      {
-        id: 3,
-        type: 'contest_join',
-        amount: -100,
-        status: 'success',
-        date: '2025-03-22T12:15:00Z',
-        description: 'Joined Grand Prize Pool Contest'
-      },
-      {
-        id: 4,
-        type: 'winning',
-        amount: 250,
-        status: 'success',
-        date: '2025-03-23T09:10:00Z',
-        description: 'Won in Winner Takes All Contest'
+  const [walletData, setWalletData] = useState<WalletData>({
+    totalBalance: 0,
+    depositedAmount: 0,
+    winnings: 0,
+    bonus: 0,
+    kycVerified: false,
+    transactions: [],
+  });
+  const [addAmount, setAddAmount] = useState(500);
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState('razorpay');
+  const [withdrawalMethod, setWithdrawalMethod] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchWalletData();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    // Update withdraw amount when winnings change
+    setWithdrawAmount(walletData.winnings);
+  }, [walletData.winnings]);
+
+  const fetchWalletData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/user/wallet');
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch wallet data');
       }
-    ]
+
+      const data = await response.json();
+      setWalletData(data);
+    } catch (error) {
+      console.error('Error fetching wallet data:', error);
+      toast.error('Failed to load wallet data');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleAddMoney = async () => {
+    if (!session?.user) {
+      toast.error('Please sign in to add money');
+      return;
+    }
+
+    if (addAmount < 100) {
+      toast.error('Minimum amount should be ₹100');
+      return;
+    }
+
+    try {
+      setProcessing(true);
+
+      // Create Razorpay order
+      const response = await fetch('/api/payments/razorpay/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount: addAmount }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Payment order creation failed:', error);
+        throw new Error(error.error || 'Failed to create payment order');
+      }
+
+      const data = await response.json();
+
+      // Initialize Razorpay
+      const options = {
+        key: data.key,
+        amount: data.amount,
+        currency: data.currency,
+        name: data.name,
+        description: data.description,
+        order_id: data.orderId,
+        handler: async (response: any) => {
+          try {
+            // Verify payment
+            const verifyResponse = await fetch(
+              '/api/payments/razorpay/verify',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  transactionId: data.transaction.id,
+                }),
+              }
+            );
+
+            const verifyData = await verifyResponse.json();
+
+            if (verifyData.success) {
+              toast.success(
+                'Payment successful! Your wallet has been updated.'
+              );
+              fetchWalletData();
+            } else {
+              toast.error(
+                'Payment verification failed. Please contact support.'
+              );
+            }
+          } catch (error) {
+            console.error('Error verifying payment:', error);
+            toast.error('Payment verification failed. Please try again later.');
+          } finally {
+            setProcessing(false);
+          }
+        },
+        prefill: {
+          name: session.user.name,
+          email: session.user.email,
+        },
+        theme: {
+          color: '#4F46E5', // Indigo-600
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessing(false);
+            toast.info('Payment cancelled');
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      let errorMessage = 'Failed to process payment';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = JSON.stringify(error);
+      }
+      toast.error(errorMessage);
+      setProcessing(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawalMethod) {
+      toast.error('Please select a withdrawal method');
+      return;
+    }
+
+    if (withdrawAmount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    if (withdrawAmount > walletData.winnings) {
+      toast.error('You can only withdraw from your winnings');
+      return;
+    }
+
+    // Implementation would connect to a payment gateway
+    toast.info(
+      `Processing withdrawal of ₹${withdrawAmount} via ${withdrawalMethod}...`
+    );
+
+    // Simulating successful withdrawal for demonstration
+    toast.success(`Withdrawal of ₹${withdrawAmount} initiated!`);
+
+    // Refresh wallet data
+    fetchWalletData();
+  };
+
+  const formatTransactionDescription = (transaction: Transaction): string => {
+    if (transaction.reference) {
+      return transaction.reference;
+    }
+
+    switch (transaction.type) {
+      case 'deposit':
+        return 'Added to wallet';
+      case 'withdrawal':
+        return 'Withdrawn from wallet';
+      case 'contest_join':
+        return 'Joined a contest';
+      case 'contest_win':
+        return 'Contest winnings';
+      case 'bonus':
+        return 'Bonus added';
+      default:
+        return transaction.type;
+    }
+  };
+
+  if (loading && !walletData.transactions.length) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
+      {/* Load Razorpay script */}
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="lazyOnload"
+      />
+
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">My Wallet</h1>
-        
+
         <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
           <div className="bg-indigo-600 text-white p-6">
             <div className="flex items-center mb-2">
               <FaWallet className="mr-2" size={24} />
               <h2 className="text-xl font-semibold">Total Balance</h2>
             </div>
-            <div className="text-3xl font-bold">₹{walletData.totalBalance.toLocaleString()}</div>
+            <div className="text-3xl font-bold">
+              ₹{walletData.totalBalance.toLocaleString()}
+            </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 divide-x divide-gray-200">
             <div className="p-4 text-center">
               <p className="text-gray-500 mb-1">Deposited</p>
-              <p className="text-xl font-semibold">₹{walletData.depositedAmount.toLocaleString()}</p>
+              <p className="text-xl font-semibold">
+                ₹{walletData.depositedAmount.toLocaleString()}
+              </p>
             </div>
             <div className="p-4 text-center">
               <p className="text-gray-500 mb-1">Winnings</p>
-              <p className="text-xl font-semibold text-green-600">₹{walletData.winnings.toLocaleString()}</p>
+              <p className="text-xl font-semibold text-green-600">
+                ₹{walletData.winnings.toLocaleString()}
+              </p>
             </div>
             <div className="p-4 text-center">
               <p className="text-gray-500 mb-1">Bonus</p>
-              <p className="text-xl font-semibold text-indigo-600">₹{walletData.bonus.toLocaleString()}</p>
+              <p className="text-xl font-semibold text-indigo-600">
+                ₹{walletData.bonus.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="flex border-b border-gray-200">
             <button
               className={`py-3 px-4 font-medium flex items-center ${
-                activeTab === 'balance' 
-                  ? 'text-indigo-600 border-b-2 border-indigo-600' 
+                activeTab === 'balance'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setActiveTab('balance')}
@@ -96,8 +309,8 @@ export default function Wallet() {
             </button>
             <button
               className={`py-3 px-4 font-medium flex items-center ${
-                activeTab === 'withdraw' 
-                  ? 'text-indigo-600 border-b-2 border-indigo-600' 
+                activeTab === 'withdraw'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setActiveTab('withdraw')}
@@ -107,8 +320,8 @@ export default function Wallet() {
             </button>
             <button
               className={`py-3 px-4 font-medium flex items-center ${
-                activeTab === 'transactions' 
-                  ? 'text-indigo-600 border-b-2 border-indigo-600' 
+                activeTab === 'transactions'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setActiveTab('transactions')}
@@ -117,13 +330,17 @@ export default function Wallet() {
               Transactions
             </button>
           </div>
-          
+
           <div className="p-6">
             {activeTab === 'balance' && (
               <div>
-                <h3 className="text-lg font-semibold mb-4">Add Money to Wallet</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  Add Money to Wallet
+                </h3>
                 <div className="mb-4">
-                  <label htmlFor="amount" className="block text-gray-700 mb-2">Amount (₹)</label>
+                  <label htmlFor="amount" className="block text-gray-700 mb-2">
+                    Amount (₹)
+                  </label>
                   <input
                     type="number"
                     id="amount"
@@ -131,55 +348,118 @@ export default function Wallet() {
                     placeholder="Enter amount"
                     min="100"
                     step="100"
-                    defaultValue="500"
+                    value={addAmount}
+                    onChange={(e) =>
+                      setAddAmount(parseInt(e.target.value) || 0)
+                    }
                   />
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {[100, 200, 500, 1000, 2000].map(amount => (
-                      <button 
+                    {[100, 200, 500, 1000, 2000].map((amount) => (
+                      <button
                         key={amount}
                         className="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+                        onClick={() => setAddAmount(amount)}
                       >
                         ₹{amount}
                       </button>
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 p-4 rounded-lg mb-4">
                   <h4 className="font-medium mb-2">Payment Methods</h4>
                   <div className="space-y-2">
                     <div className="flex items-center">
-                      <input type="radio" id="upi" name="payment" className="mr-2" defaultChecked />
+                      <input
+                        type="radio"
+                        id="razorpay"
+                        name="payment"
+                        className="mr-2"
+                        checked={paymentMethod === 'razorpay'}
+                        onChange={() => setPaymentMethod('razorpay')}
+                      />
+                      <label htmlFor="razorpay" className="flex items-center">
+                        Razorpay
+                        <img
+                          src="/razorpay-logo.svg"
+                          alt="Razorpay"
+                          className="h-5 ml-2"
+                          onError={(e) =>
+                            (e.currentTarget.style.display = 'none')
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="upi"
+                        name="payment"
+                        className="mr-2"
+                        checked={paymentMethod === 'upi'}
+                        onChange={() => setPaymentMethod('upi')}
+                      />
                       <label htmlFor="upi">UPI</label>
                     </div>
                     <div className="flex items-center">
-                      <input type="radio" id="card" name="payment" className="mr-2" />
+                      <input
+                        type="radio"
+                        id="card"
+                        name="payment"
+                        className="mr-2"
+                        checked={paymentMethod === 'card'}
+                        onChange={() => setPaymentMethod('card')}
+                      />
                       <label htmlFor="card">Credit/Debit Card</label>
-                    </div>
-                    <div className="flex items-center">
-                      <input type="radio" id="netbanking" name="payment" className="mr-2" />
-                      <label htmlFor="netbanking">Net Banking</label>
                     </div>
                   </div>
                 </div>
-                
-                <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded font-medium">
-                  Add Money
+
+                <button
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  onClick={handleAddMoney}
+                  disabled={addAmount < 100 || processing}
+                >
+                  {processing ? 'Processing...' : 'Add Money'}
                 </button>
               </div>
             )}
-            
+
             {activeTab === 'withdraw' && (
               <div>
-                <h3 className="text-lg font-semibold mb-4">Withdraw Winnings</h3>
-                
+                <h3 className="text-lg font-semibold mb-4">
+                  Withdraw Winnings
+                </h3>
+
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                  <p className="font-medium text-green-800">Available for withdrawal: ₹{walletData.winnings.toLocaleString()}</p>
-                  <p className="text-sm text-green-700 mt-1">Only winnings can be withdrawn. Deposited amount can be used to join contests.</p>
+                  <p className="font-medium text-green-800">
+                    Available for withdrawal: ₹
+                    {walletData.winnings.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-green-700 mt-1">
+                    Only winnings can be withdrawn. Deposited amount can be used
+                    to join contests.
+                  </p>
                 </div>
-                
+
+                {!walletData.kycVerified && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <p className="font-medium text-yellow-800">
+                      KYC verification required
+                    </p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      Please complete your KYC verification to withdraw funds.
+                    </p>
+                  </div>
+                )}
+
                 <div className="mb-4">
-                  <label htmlFor="withdraw-amount" className="block text-gray-700 mb-2">Amount (₹)</label>
+                  <label
+                    htmlFor="withdraw-amount"
+                    className="block text-gray-700 mb-2"
+                  >
+                    Amount (₹)
+                  </label>
                   <input
                     type="number"
                     id="withdraw-amount"
@@ -187,15 +467,22 @@ export default function Wallet() {
                     placeholder="Enter amount"
                     min="100"
                     max={walletData.winnings}
-                    defaultValue={walletData.winnings}
+                    value={withdrawAmount}
+                    onChange={(e) =>
+                      setWithdrawAmount(parseInt(e.target.value) || 0)
+                    }
                   />
                 </div>
-                
+
                 <div className="mb-4">
-                  <label htmlFor="account" className="block text-gray-700 mb-2">Withdrawal Method</label>
+                  <label htmlFor="account" className="block text-gray-700 mb-2">
+                    Withdrawal Method
+                  </label>
                   <select
                     id="account"
                     className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={withdrawalMethod}
+                    onChange={(e) => setWithdrawalMethod(e.target.value)}
                   >
                     <option value="">Select withdrawal method</option>
                     <option value="bank">Bank Account</option>
@@ -203,63 +490,92 @@ export default function Wallet() {
                     <option value="paytm">Paytm</option>
                   </select>
                 </div>
-                
-                <button className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded font-medium">
-                  Withdraw
+
+                <button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  onClick={handleWithdraw}
+                  disabled={
+                    !walletData.kycVerified ||
+                    withdrawAmount <= 0 ||
+                    withdrawAmount > walletData.winnings ||
+                    !withdrawalMethod ||
+                    processing
+                  }
+                >
+                  {processing ? 'Processing...' : 'Withdraw'}
                 </button>
               </div>
             )}
-            
+
             {activeTab === 'transactions' && (
               <div>
-                <h3 className="text-lg font-semibold mb-4">Transaction History</h3>
-                
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Description
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {walletData.transactions.map(transaction => (
-                        <tr key={transaction.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(transaction.date).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {transaction.description}
-                          </td>
-                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
-                            transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {transaction.amount > 0 ? '+' : ''}{transaction.amount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              transaction.status === 'success' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {transaction.status}
-                            </span>
-                          </td>
+                <h3 className="text-lg font-semibold mb-4">
+                  Transaction History
+                </h3>
+
+                {walletData.transactions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No transactions found
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Description
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Amount
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {walletData.transactions.map((transaction) => (
+                          <tr key={transaction.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(
+                                transaction.createdAt
+                              ).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatTransactionDescription(transaction)}
+                            </td>
+                            <td
+                              className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                                transaction.amount > 0
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              }`}
+                            >
+                              {transaction.amount > 0 ? '+' : ''}
+                              {transaction.amount}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <span
+                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  transaction.status === 'completed'
+                                    ? 'bg-green-100 text-green-800'
+                                    : transaction.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {transaction.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

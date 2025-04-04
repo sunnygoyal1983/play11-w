@@ -32,6 +32,20 @@ const CONSTRAINTS = {
   MAX_BOWL: 6,
 };
 
+// Final player type with proper structure
+interface Player {
+  id: string;
+  name: string;
+  image: string | null;
+  teamId: string;
+  role: string;
+  credits: number;
+  points: number;
+  selected: boolean;
+  isCaptain: boolean;
+  isViceCaptain: boolean;
+}
+
 export default function CreateTeam() {
   const params = useParams();
   const router = useRouter();
@@ -39,13 +53,21 @@ export default function CreateTeam() {
   const matchId = params?.id as string;
 
   const [match, setMatch] = useState<any>(null);
-  const [players, setPlayers] = useState<any[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('WK');
-  const [selectedPlayers, setSelectedPlayers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'WK' | 'BAT' | 'AR' | 'BOWL'>(
+    'WK'
+  );
+  const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState('');
   const [showCaptainSelection, setShowCaptainSelection] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
+
+  // Add dedicated state for captain and vice-captain
+  const [captainId, setCaptainId] = useState<string | null>(null);
+  const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -57,106 +79,234 @@ export default function CreateTeam() {
     }
   }, [status, router, matchId]);
 
-  // Fetch match and players data
-  useEffect(() => {
-    const fetchMatchData = async () => {
-      if (!matchId) return;
+  // Fetch match data and players
+  const fetchMatchData = async () => {
+    console.log('Fetching match data for match ID:', matchId);
+    if (!matchId) return;
 
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
+      setError(null);
 
-        // Fetch match details
-        const matchResponse = await fetch(`/api/matches/${matchId}`);
-        if (!matchResponse.ok) {
-          throw new Error('Failed to load match');
-        }
-        const matchData = await matchResponse.json();
-        console.log('Match data:', matchData);
-        setMatch(matchData);
-
-        // Fetch players for the match
-        const playersResponse = await fetch(`/api/players?matchId=${matchId}`);
-        if (!playersResponse.ok) {
-          throw new Error('Failed to load players');
-        }
-        const playersData = await playersResponse.json();
-        console.log('Players data:', playersData);
-
-        // Check if playersData is an array or has a data property
-        let playersList = Array.isArray(playersData) ? playersData : [];
-
-        // Ensure we have player data to work with
-        if (playersList.length === 0) {
-          // If no players found, create some dummy players for testing
-          console.warn('No players found, generating test players');
-
-          // Generate test players for each role
-          const createTestPlayers = (
-            teamId: string,
-            teamName: string,
-            count: number
-          ) => {
-            return Array.from({ length: count }, (_, i) => {
-              // Assign roles in a balanced way
-              let role = 'BAT';
-              if (i % 11 < 1) role = 'WK';
-              else if (i % 11 < 4) role = 'BAT';
-              else if (i % 11 < 7) role = 'AR';
-              else role = 'BOWL';
-
-              return {
-                id: `test-${teamId}-${i}`,
-                name: `${teamName} Player ${i + 1}`,
-                role,
-                teamId,
-                credits: 8 + (i % 3),
-                image: null,
-                points: Math.floor(Math.random() * 100),
-                selected: false,
-                isCaptain: false,
-                isViceCaptain: false,
-              };
-            });
-          };
-
-          // Create test players for both teams
-          const teamAPlayers = createTestPlayers(
-            matchData.teamAId,
-            matchData.teamAName,
-            15
-          );
-          const teamBPlayers = createTestPlayers(
-            matchData.teamBId,
-            matchData.teamBName,
-            15
-          );
-
-          playersList = [...teamAPlayers, ...teamBPlayers];
-        } else {
-          // Transform player data and add selected state
-          playersList = playersList.map((player: any) => ({
-            ...player,
-            selected: false,
-            isCaptain: false,
-            isViceCaptain: false,
-            team: player.teamId, // Ensure team property for filtering
-            // Add credits if missing
-            credits: player.credits || calculateCredits(player),
-          }));
-        }
-
-        console.log('Processed players:', playersList);
-        setPlayers(playersList);
-      } catch (error) {
-        console.error('Error loading match data:', error);
-        toast.error('Failed to load match data');
-      } finally {
-        setLoading(false);
+      // Fetch match details
+      const matchResponse = await fetch(`/api/matches/${matchId}`);
+      if (!matchResponse.ok) {
+        throw new Error(
+          `Failed to fetch match data: ${matchResponse.statusText}`
+        );
       }
-    };
+      const matchData = await matchResponse.json();
+      const match = matchData.data;
+      console.log('Match data:', match);
+      setMatch(match);
 
-    fetchMatchData();
-  }, [matchId]);
+      // Try multiple sources for player data
+      let playersData = [];
+      let players = [];
+
+      // 1. First try the new dedicated match players API
+      try {
+        console.log('Trying dedicated match players API endpoint...');
+        const matchPlayersResponse = await fetch(
+          `/api/matches/${matchId}/players`
+        );
+        if (matchPlayersResponse.ok) {
+          const matchPlayersData = await matchPlayersResponse.json();
+          if (
+            matchPlayersData.success &&
+            matchPlayersData.data &&
+            matchPlayersData.data.length > 0
+          ) {
+            console.log(
+              'Successfully fetched players from dedicated API:',
+              matchPlayersData.data.length
+            );
+            playersData = matchPlayersData.data;
+            players = processPlayersData(playersData);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching from dedicated match players API:', err);
+      }
+
+      // 2. If the dedicated API didn't return players, try the generic players API
+      if (players.length === 0) {
+        try {
+          console.log('Trying generic players API with matchId...');
+          const playersResponse = await fetch(
+            `/api/players?matchId=${matchId}`
+          );
+          if (playersResponse.ok) {
+            const playersResponseData = await playersResponse.json();
+            if (
+              playersResponseData.success &&
+              playersResponseData.data &&
+              playersResponseData.data.length > 0
+            ) {
+              console.log(
+                'Successfully fetched players from generic API:',
+                playersResponseData.data.length
+              );
+              playersData = playersResponseData.data;
+              players = processPlayersData(playersData);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching from generic players API:', err);
+        }
+      }
+
+      // 3. As a last resort, use a fallback with dummy data
+      if (players.length === 0) {
+        console.log('No players found from APIs. Creating fallback data.');
+        const teamA = match.teamAName || 'Team A';
+        const teamB = match.teamBName || 'Team B';
+
+        // Create dummy players with balanced roles
+        const dummyPlayers = createDummyPlayers(
+          match.teamAId,
+          match.teamBId,
+          teamA,
+          teamB
+        );
+        players = processPlayersData(dummyPlayers);
+      }
+
+      console.log('Final players after all attempts:', players.length);
+      console.log('Players by role:');
+      console.log('WK:', players.filter((p: Player) => p.role === 'WK').length);
+      console.log(
+        'BAT:',
+        players.filter((p: Player) => p.role === 'BAT').length
+      );
+      console.log('AR:', players.filter((p: Player) => p.role === 'AR').length);
+      console.log(
+        'BOWL:',
+        players.filter((p: Player) => p.role === 'BOWL').length
+      );
+
+      setPlayers(players);
+      setFilteredPlayers(players);
+    } catch (err) {
+      console.error('Error fetching match data:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to fetch match data'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper to create dummy players as fallback
+  const createDummyPlayers = (
+    teamAId: string,
+    teamBId: string,
+    teamAName: string,
+    teamBName: string
+  ) => {
+    const roles = ['WK', 'BAT', 'AR', 'BOWL'];
+    const dummyPlayers = [];
+
+    // Create a balanced set of players for each team
+    for (let team of [
+      { id: teamAId, name: teamAName },
+      { id: teamBId, name: teamBName },
+    ]) {
+      // Create 2 WK
+      for (let i = 0; i < 2; i++) {
+        dummyPlayers.push({
+          id: `dummy-${team.id}-wk-${i}`,
+          name: `${team.name} WK ${i + 1}`,
+          image: null,
+          teamId: team.id,
+          role: 'WK',
+          credits: 8.0 + Math.random(),
+          points: 0,
+          selected: false,
+          isCaptain: false,
+          isViceCaptain: false,
+        });
+      }
+
+      // Create 6 BAT
+      for (let i = 0; i < 6; i++) {
+        dummyPlayers.push({
+          id: `dummy-${team.id}-bat-${i}`,
+          name: `${team.name} BAT ${i + 1}`,
+          image: null,
+          teamId: team.id,
+          role: 'BAT',
+          credits: 8.5 + Math.random(),
+          points: 0,
+          selected: false,
+          isCaptain: false,
+          isViceCaptain: false,
+        });
+      }
+
+      // Create 4 AR
+      for (let i = 0; i < 4; i++) {
+        dummyPlayers.push({
+          id: `dummy-${team.id}-ar-${i}`,
+          name: `${team.name} AR ${i + 1}`,
+          image: null,
+          teamId: team.id,
+          role: 'AR',
+          credits: 8.5 + Math.random(),
+          points: 0,
+          selected: false,
+          isCaptain: false,
+          isViceCaptain: false,
+        });
+      }
+
+      // Create 6 BOWL
+      for (let i = 0; i < 6; i++) {
+        dummyPlayers.push({
+          id: `dummy-${team.id}-bowl-${i}`,
+          name: `${team.name} BOWL ${i + 1}`,
+          image: null,
+          teamId: team.id,
+          role: 'BOWL',
+          credits: 8.0 + Math.random(),
+          points: 0,
+          selected: false,
+          isCaptain: false,
+          isViceCaptain: false,
+        });
+      }
+    }
+
+    return dummyPlayers;
+  };
+
+  // Helper function to standardize roles
+  const standardizeRole = (role: string | null) => {
+    if (!role) return 'BAT';
+
+    const upperRole = role.toUpperCase();
+
+    if (
+      upperRole.includes('WICKET') ||
+      upperRole.includes('KEEPER') ||
+      upperRole === 'WK'
+    ) {
+      return 'WK';
+    } else if (upperRole.includes('BAT') || upperRole.includes('BATTER')) {
+      return 'BAT';
+    } else if (
+      upperRole.includes('ALL') ||
+      upperRole.includes('ROUNDER') ||
+      upperRole === 'AR'
+    ) {
+      return 'AR';
+    } else if (upperRole.includes('BOWL') || upperRole.includes('BALLER')) {
+      return 'BOWL';
+    }
+
+    // Default to batsman if unknown
+    return 'BAT';
+  };
 
   // Helper function to calculate player credits if not present
   const calculateCredits = (player: any) => {
@@ -193,27 +343,10 @@ export default function CreateTeam() {
     },
   };
 
-  // Group players by role, with fallback for missing roles
-  const playersByRole = {
-    WK: players.filter((player) => player.role === 'WK'),
-    BAT: players.filter((player) => player.role === 'BAT'),
-    AR: players.filter((player) => player.role === 'AR'),
-    BOWL: players.filter((player) => player.role === 'BOWL'),
-  };
-
-  // Add console statements to check players by role
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('Players by role:', {
-      WK: playersByRole.WK.length,
-      BAT: playersByRole.BAT.length,
-      AR: playersByRole.AR.length,
-      BOWL: playersByRole.BOWL.length,
-    });
-  }
-
   // Check if player can be selected based on team constraints
   const canSelectPlayer = (player: any) => {
-    if (teamStats.totalPlayers >= CONSTRAINTS.TOTAL_PLAYERS) {
+    // Check if we already have 11 players (max allowed)
+    if (teamStats.totalPlayers === CONSTRAINTS.TOTAL_PLAYERS) {
       return false;
     }
 
@@ -262,12 +395,22 @@ export default function CreateTeam() {
   // Handle player selection/deselection
   const togglePlayerSelection = (playerId: string) => {
     const playerIndex = players.findIndex((p) => p.id === playerId);
-    if (playerIndex === -1) return;
+    if (playerIndex === -1) {
+      console.error(`Player with ID ${playerId} not found`);
+      return;
+    }
 
     const player = players[playerIndex];
+    console.log(
+      'Attempting to toggle player:',
+      player.name,
+      'Current total players:',
+      teamStats.totalPlayers
+    );
 
     if (player.selected) {
       // Deselect player
+      console.log('Deselecting player:', player.name);
       const updatedPlayers = players.map((p) =>
         p.id === playerId
           ? { ...p, selected: false, isCaptain: false, isViceCaptain: false }
@@ -278,73 +421,215 @@ export default function CreateTeam() {
     } else {
       // Select player if constraints allow
       if (canSelectPlayer(player)) {
+        console.log(
+          'Selecting player:',
+          player.name,
+          'New total will be:',
+          teamStats.totalPlayers + 1
+        );
         const updatedPlayers = players.map((p) =>
           p.id === playerId ? { ...p, selected: true } : p
         );
         setPlayers(updatedPlayers);
         setSelectedPlayers([...selectedPlayers, { ...player, selected: true }]);
       } else {
-        // Show error message
-        toast.error('Cannot select this player due to team constraints');
+        // Show detailed error message
+        console.log('Cannot select player due to constraints:', {
+          totalPlayers: teamStats.totalPlayers,
+          maxAllowed: CONSTRAINTS.TOTAL_PLAYERS,
+          playerRole: player.role,
+          currentRoleCounts: teamStats.roleCounts,
+          maxRoleAllowed: {
+            WK: CONSTRAINTS.MAX_WK,
+            BAT: CONSTRAINTS.MAX_BAT,
+            AR: CONSTRAINTS.MAX_AR,
+            BOWL: CONSTRAINTS.MAX_BOWL,
+          },
+          teamACounts: teamStats.teamACounts,
+          teamBCounts: teamStats.teamBCounts,
+          maxPerTeam: CONSTRAINTS.MAX_PLAYERS_PER_TEAM,
+          playerCredits: player.credits,
+          currentCredits: teamStats.totalCredits,
+          maxCredits: CONSTRAINTS.CREDITS,
+        });
+
+        let errorMessage = 'Cannot select this player: ';
+
+        if (teamStats.totalPlayers === CONSTRAINTS.TOTAL_PLAYERS) {
+          errorMessage += 'Team already has maximum 11 players.';
+        } else if (
+          player.teamId === match?.teamAId &&
+          teamStats.teamACounts >= CONSTRAINTS.MAX_PLAYERS_PER_TEAM
+        ) {
+          errorMessage += `Maximum ${CONSTRAINTS.MAX_PLAYERS_PER_TEAM} players from ${match.teamAName} allowed.`;
+        } else if (
+          player.teamId === match?.teamBId &&
+          teamStats.teamBCounts >= CONSTRAINTS.MAX_PLAYERS_PER_TEAM
+        ) {
+          errorMessage += `Maximum ${CONSTRAINTS.MAX_PLAYERS_PER_TEAM} players from ${match.teamBName} allowed.`;
+        } else if (
+          player.role === 'WK' &&
+          teamStats.roleCounts.WK >= CONSTRAINTS.MAX_WK
+        ) {
+          errorMessage += `Maximum ${CONSTRAINTS.MAX_WK} wicket keepers allowed.`;
+        } else if (
+          player.role === 'BAT' &&
+          teamStats.roleCounts.BAT >= CONSTRAINTS.MAX_BAT
+        ) {
+          errorMessage += `Maximum ${CONSTRAINTS.MAX_BAT} batsmen allowed.`;
+        } else if (
+          player.role === 'AR' &&
+          teamStats.roleCounts.AR >= CONSTRAINTS.MAX_AR
+        ) {
+          errorMessage += `Maximum ${CONSTRAINTS.MAX_AR} all rounders allowed.`;
+        } else if (
+          player.role === 'BOWL' &&
+          teamStats.roleCounts.BOWL >= CONSTRAINTS.MAX_BOWL
+        ) {
+          errorMessage += `Maximum ${CONSTRAINTS.MAX_BOWL} bowlers allowed.`;
+        } else if (
+          teamStats.totalCredits + player.credits >
+          CONSTRAINTS.CREDITS
+        ) {
+          errorMessage += `Not enough credits (${
+            CONSTRAINTS.CREDITS - teamStats.totalCredits
+          } left, need ${player.credits}).`;
+        }
+
+        toast.error(errorMessage);
       }
     }
   };
 
-  // Set captain and vice-captain
-  const setCaptain = (playerId: string) => {
-    const updatedPlayers = players.map((p) =>
-      p.id === playerId
-        ? { ...p, isCaptain: true, isViceCaptain: false }
-        : { ...p, isCaptain: false }
-    );
-    setPlayers(updatedPlayers);
-    setSelectedPlayers(
-      selectedPlayers.map((p) =>
-        p.id === playerId
-          ? { ...p, isCaptain: true, isViceCaptain: false }
-          : { ...p, isCaptain: false }
-      )
-    );
-  };
+  // Set captain with a dedicated function
+  const handleSetCaptain = (playerId: string) => {
+    console.log('Setting captain:', playerId);
 
-  const setViceCaptain = (playerId: string) => {
-    const updatedPlayers = players.map((p) =>
-      p.id === playerId
-        ? { ...p, isViceCaptain: true, isCaptain: false }
-        : { ...p, isViceCaptain: false }
-    );
-    setPlayers(updatedPlayers);
-    setSelectedPlayers(
-      selectedPlayers.map((p) =>
-        p.id === playerId
-          ? { ...p, isViceCaptain: true, isCaptain: false }
-          : { ...p, isViceCaptain: false }
-      )
-    );
-  };
-
-  // Check if team is valid for submission
-  const isTeamValid = () => {
-    if (teamStats.totalPlayers !== CONSTRAINTS.TOTAL_PLAYERS) return false;
-    if (teamStats.roleCounts.WK < CONSTRAINTS.MIN_WK) return false;
-    if (teamStats.roleCounts.BAT < CONSTRAINTS.MIN_BAT) return false;
-    if (teamStats.roleCounts.AR < CONSTRAINTS.MIN_AR) return false;
-    if (teamStats.roleCounts.BOWL < CONSTRAINTS.MIN_BOWL) return false;
-    if (teamStats.teamACounts < CONSTRAINTS.MIN_PLAYERS_PER_TEAM) return false;
-    if (teamStats.teamBCounts < CONSTRAINTS.MIN_PLAYERS_PER_TEAM) return false;
-
-    // Check if captain and vice-captain are selected
-    if (showCaptainSelection) {
-      const hasCaptain = selectedPlayers.some((p) => p.isCaptain);
-      const hasViceCaptain = selectedPlayers.some((p) => p.isViceCaptain);
-      if (!hasCaptain || !hasViceCaptain) return false;
-      if (!teamName.trim()) return false;
+    // If this player was vice-captain, remove that role
+    if (playerId === viceCaptainId) {
+      setViceCaptainId(null);
     }
 
+    // Set the captain ID
+    setCaptainId(playerId);
+  };
+
+  // Set vice-captain with a dedicated function
+  const handleSetViceCaptain = (playerId: string) => {
+    console.log('Setting vice-captain:', playerId);
+
+    // If this player was captain, remove that role
+    if (playerId === captainId) {
+      setCaptainId(null);
+    }
+
+    // Set the vice-captain ID
+    setViceCaptainId(playerId);
+  };
+
+  // Check if team is valid for submission - modified for dedicated captain/vice-captain state
+  const isTeamValid = () => {
+    console.log('Checking team validity...');
+
+    // Check total players count
+    if (teamStats.totalPlayers !== CONSTRAINTS.TOTAL_PLAYERS) {
+      console.log(
+        'Invalid: Incorrect number of players',
+        teamStats.totalPlayers
+      );
+      return false;
+    }
+
+    // Check role requirements
+    if (teamStats.roleCounts.WK < CONSTRAINTS.MIN_WK) {
+      console.log(
+        'Invalid: Not enough WK',
+        teamStats.roleCounts.WK,
+        '<',
+        CONSTRAINTS.MIN_WK
+      );
+      return false;
+    }
+    if (teamStats.roleCounts.BAT < CONSTRAINTS.MIN_BAT) {
+      console.log(
+        'Invalid: Not enough BAT',
+        teamStats.roleCounts.BAT,
+        '<',
+        CONSTRAINTS.MIN_BAT
+      );
+      return false;
+    }
+    if (teamStats.roleCounts.AR < CONSTRAINTS.MIN_AR) {
+      console.log(
+        'Invalid: Not enough AR',
+        teamStats.roleCounts.AR,
+        '<',
+        CONSTRAINTS.MIN_AR
+      );
+      return false;
+    }
+    if (teamStats.roleCounts.BOWL < CONSTRAINTS.MIN_BOWL) {
+      console.log(
+        'Invalid: Not enough BOWL',
+        teamStats.roleCounts.BOWL,
+        '<',
+        CONSTRAINTS.MIN_BOWL
+      );
+      return false;
+    }
+
+    // Check team distribution
+    if (teamStats.teamACounts < CONSTRAINTS.MIN_PLAYERS_PER_TEAM) {
+      console.log(
+        'Invalid: Not enough players from team A',
+        teamStats.teamACounts,
+        '<',
+        CONSTRAINTS.MIN_PLAYERS_PER_TEAM
+      );
+      return false;
+    }
+    if (teamStats.teamBCounts < CONSTRAINTS.MIN_PLAYERS_PER_TEAM) {
+      console.log(
+        'Invalid: Not enough players from team B',
+        teamStats.teamBCounts,
+        '<',
+        CONSTRAINTS.MIN_PLAYERS_PER_TEAM
+      );
+      return false;
+    }
+
+    // Check captain and vice-captain selection
+    if (showCaptainSelection) {
+      console.log('Captain selection check:', {
+        showCaptainSelection,
+        captainId,
+        viceCaptainId,
+        teamName: teamName.trim(),
+      });
+
+      if (!captainId) {
+        console.log('Invalid: No captain selected');
+        return false;
+      }
+      if (!viceCaptainId) {
+        console.log('Invalid: No vice-captain selected');
+        return false;
+      }
+      if (captainId === viceCaptainId) {
+        console.log('Invalid: Captain and vice-captain cannot be the same');
+        return false;
+      }
+      if (!teamName.trim()) {
+        console.log('Invalid: No team name provided');
+        return false;
+      }
+    }
+
+    console.log('Team is valid!');
     return true;
   };
 
-  // Handle team submission
+  // Handle team submission - modified for dedicated captain/vice-captain state
   const handleSubmitTeam = async () => {
     if (!isTeamValid()) {
       toast.error('Please complete your team selection');
@@ -354,31 +639,29 @@ export default function CreateTeam() {
     try {
       setIsSaving(true);
 
-      // Find the selected captain and vice-captain
-      const captain = selectedPlayers.find((p) => p.isCaptain);
-      const viceCaptain = selectedPlayers.find((p) => p.isViceCaptain);
-
-      if (!captain || !viceCaptain) {
+      if (!captainId || !viceCaptainId) {
         toast.error('Please select a captain and vice-captain');
         setIsSaving(false);
         return;
       }
 
-      // Create team object
+      // Create team object with the dedicated IDs
       const teamData = {
         name: teamName,
         matchId: matchId,
-        captainId: captain.id,
-        viceCaptainId: viceCaptain.id,
+        captainId: captainId,
+        viceCaptainId: viceCaptainId,
         players: selectedPlayers.map((player) => ({
           playerId: player.id,
-          isCaptain: player.isCaptain,
-          isViceCaptain: player.isViceCaptain,
+          isCaptain: player.id === captainId,
+          isViceCaptain: player.id === viceCaptainId,
         })),
       };
 
+      console.log('Submitting team data:', JSON.stringify(teamData));
+
       // Submit to API
-      const response = await fetch('/api/teams', {
+      const response = await fetch('/api/fantasy-teams', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -386,9 +669,15 @@ export default function CreateTeam() {
         body: JSON.stringify(teamData),
       });
 
+      const result = await response.json();
+      console.log('API response:', result);
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create team');
+        throw new Error(result.error || 'Failed to create team');
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create team');
       }
 
       toast.success('Team created successfully!');
@@ -403,6 +692,7 @@ export default function CreateTeam() {
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create team');
+      console.error('Team creation error:', error);
     } finally {
       setIsSaving(false);
     }
@@ -483,6 +773,57 @@ export default function CreateTeam() {
       </div>
     </div>
   );
+
+  // Clean players data to fix roles and other issues
+  const processPlayersData = (playersData: any[]): Player[] => {
+    if (!playersData || !Array.isArray(playersData)) {
+      console.error('Invalid players data:', playersData);
+      return [];
+    }
+
+    return playersData.map((p: any) => ({
+      id: p.id || '',
+      name: p.name || '',
+      image: p.image || '/images/player-placeholder.png',
+      teamId: p.teamId || '',
+      role: standardizeRole(p.role),
+      credits: typeof p.credits === 'number' ? p.credits : 9.0,
+      points: typeof p.points === 'number' ? p.points : 0,
+      selected: Boolean(p.selected),
+      isCaptain: Boolean(p.isCaptain),
+      isViceCaptain: Boolean(p.isViceCaptain),
+    }));
+  };
+
+  // Callback to update activeTab - ensure it's a valid role
+  const handleTabChange = (tab: 'WK' | 'BAT' | 'AR' | 'BOWL') => {
+    setActiveTab(tab);
+  };
+
+  // Call the fetchMatchData function when the component mounts
+  useEffect(() => {
+    fetchMatchData();
+  }, [matchId]);
+
+  // Update filtered players when active tab changes
+  useEffect(() => {
+    const filtered = players.filter((player) => player.role === activeTab);
+    setFilteredPlayers(filtered);
+  }, [activeTab, players]);
+
+  // Add debugging effect to track captain/vice-captain selections
+  useEffect(() => {
+    console.log('Current selection status:', {
+      totalPlayers: selectedPlayers.length,
+      captain: selectedPlayers.find((p) => p.isCaptain)?.name || 'None',
+      viceCaptain: selectedPlayers.find((p) => p.isViceCaptain)?.name || 'None',
+      teamName: teamName.trim() ? 'Provided' : 'Empty',
+    });
+
+    // Check if the team is valid and log the reason if it's not
+    const valid = isTeamValid();
+    console.log('Team valid:', valid);
+  }, [selectedPlayers, teamName]);
 
   if (loading) {
     return (
@@ -650,9 +991,9 @@ export default function CreateTeam() {
 
                   <div className="p-3 flex space-x-2">
                     <button
-                      onClick={() => setCaptain(player.id)}
+                      onClick={() => handleSetCaptain(player.id)}
                       className={`flex-1 py-1 px-2 rounded text-sm font-medium ${
-                        player.isCaptain
+                        player.id === captainId
                           ? 'bg-indigo-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
@@ -660,9 +1001,9 @@ export default function CreateTeam() {
                       Captain (2x)
                     </button>
                     <button
-                      onClick={() => setViceCaptain(player.id)}
+                      onClick={() => handleSetViceCaptain(player.id)}
                       className={`flex-1 py-1 px-2 rounded text-sm font-medium ${
-                        player.isViceCaptain
+                        player.id === viceCaptainId
                           ? 'bg-indigo-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
@@ -698,7 +1039,9 @@ export default function CreateTeam() {
                         ? 'text-indigo-600 border-b-2 border-indigo-600'
                         : 'text-gray-500'
                     }`}
-                    onClick={() => setActiveTab(role)}
+                    onClick={() =>
+                      handleTabChange(role as 'WK' | 'BAT' | 'AR' | 'BOWL')
+                    }
                   >
                     {label} (
                     {
@@ -735,11 +1078,9 @@ export default function CreateTeam() {
 
               {/* Player List */}
               <div className="max-h-[430px] overflow-y-auto pb-2">
-                {playersByRole[activeTab as keyof typeof playersByRole]
-                  ?.length === 0 ? (
+                {filteredPlayers.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">
-                    No {ROLES[activeTab as keyof typeof ROLES]} players
-                    available
+                    No {ROLES[activeTab]} players available
                   </div>
                 ) : (
                   // Group players by team
@@ -749,7 +1090,7 @@ export default function CreateTeam() {
                         <div className="w-3 h-3 rounded-full bg-indigo-100 mr-1"></div>
                         {match.teamAName} Players
                       </div>
-                      {playersByRole[activeTab as keyof typeof playersByRole]
+                      {filteredPlayers
                         .filter((p) => p.teamId === match.teamAId)
                         .map(renderPlayerCard)}
                     </div>
@@ -759,7 +1100,7 @@ export default function CreateTeam() {
                         <div className="w-3 h-3 rounded-full bg-red-100 mr-1"></div>
                         {match.teamBName} Players
                       </div>
-                      {playersByRole[activeTab as keyof typeof playersByRole]
+                      {filteredPlayers
                         .filter((p) => p.teamId === match.teamBId)
                         .map(renderPlayerCard)}
                     </div>

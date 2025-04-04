@@ -8,6 +8,7 @@ export default function TestImportPage() {
   const [matchId, setMatchId] = useState('');
   const [limit, setLimit] = useState('10');
   const [includePlayers, setIncludePlayers] = useState(true);
+  const [forceImport, setForceImport] = useState(false);
   const [importMethod, setImportMethod] = useState<
     'standard' | 'match-players' | 'squad-players'
   >('standard');
@@ -46,6 +47,7 @@ export default function TestImportPage() {
               entityType,
               ...(tournamentId ? { tournamentId } : {}),
               includePlayers,
+              force: forceImport,
             }),
           });
 
@@ -84,7 +86,9 @@ export default function TestImportPage() {
       default:
         return `/api/import?action=import&entityType=${entityType}${
           tournamentId ? `&tournamentId=${tournamentId}` : ''
-        }${includePlayers ? '&includePlayers=true' : ''}`;
+        }${includePlayers ? '&includePlayers=true' : ''}${
+          forceImport ? '&force=true' : ''
+        }`;
     }
   };
 
@@ -173,6 +177,21 @@ export default function TestImportPage() {
                 Include Match Players
                 <span className="ml-2 text-sm text-gray-500">
                   (Fetches detailed match data with player lineups)
+                </span>
+              </label>
+            </div>
+
+            <div className="mb-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={forceImport}
+                  onChange={(e) => setForceImport(e.target.checked)}
+                  className="mr-2"
+                />
+                Force Re-Import
+                <span className="ml-2 text-sm text-gray-500">
+                  (Re-import data even if it already exists)
                 </span>
               </label>
             </div>
