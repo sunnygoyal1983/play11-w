@@ -276,88 +276,120 @@ const MOCK_LIVE_MATCH_DATA = {
  * Fetch live match details from SportMonk API
  */
 export async function fetchLiveMatchDetails(matchId: string) {
-  const apiKey = process.env.SPORTMONK_API_KEY;
-
-  if (!apiKey) {
-    console.error('SportMonk API key not found');
-    return MOCK_LIVE_MATCH_DATA;
-  }
+  const apiKey =
+    process.env.SPORTMONK_API_KEY ||
+    'OJwhjCV6g9xODzgOCaCgc1KrDhtv7cOlh6K5LW6OiL6JDdEtX7M7W7x62Uja';
 
   try {
-    console.log(`Fetching live match details for match ID: ${matchId}`);
+    console.log(`Fetching match details for match ID: ${matchId}`);
 
-    // Properly format the filter parameter - this was causing 400 error
-    // Using filter[id] with brackets was causing issues
-    const liveScoreUrl = `https://cricket.sportmonks.com/api/v2.0/livescores/${matchId}?api_token=${apiKey}&include=localteam,visitorteam,batting,bowling,scoreboards,balls,runs`;
+    // Use comprehensive include parameters to get all required data
+    const apiUrl = `https://cricket.sportmonks.com/api/v2.0/fixtures/${matchId}?api_token=${apiKey}&include=runs,batting,bowling,scoreboards,balls,visitorteam,localteam,lineup,venue,manofmatch`;
 
-    console.log(`Making request to: ${liveScoreUrl}`);
+    console.log(`Making request to: ${apiUrl}`);
 
-    const response = await axios.get(liveScoreUrl);
+    // Log the API endpoint we're calling
+    console.log(`Fetching live match details from SportMonks API: ${apiUrl}`);
+
+    const response = await axios.get(apiUrl);
+
+    // Log the response structure
+    if (response.data && response.data.data) {
+      const matchData = response.data.data;
+      console.log('SportMonks API response structure:');
+      console.log('- Has balls array:', !!matchData.balls);
+      if (matchData.balls) {
+        console.log('- Balls array type:', typeof matchData.balls);
+        console.log(
+          '- Balls array length:',
+          Array.isArray(matchData.balls)
+            ? matchData.balls.length
+            : 'not an array'
+        );
+        if (Array.isArray(matchData.balls) && matchData.balls.length > 0) {
+          console.log(
+            '- First 2 ball elements:',
+            JSON.stringify(matchData.balls.slice(0, 2))
+          );
+        }
+      }
+    }
 
     if (response.status === 200 && response.data && response.data.data) {
-      console.log('Successfully fetched live match data');
+      console.log('Successfully fetched match data');
 
-      // Log useful debug info
-      const matchData = response.data.data;
-      console.log(`Match status: ${matchData.status}`);
-      console.log(`Batting players: ${matchData.batting?.length || 0}`);
-      console.log(`Bowling players: ${matchData.bowling?.length || 0}`);
-      console.log(`Lineup players: ${matchData.lineup?.length || 0}`);
+      // Process the raw data into a consistent format
+      const rawData = response.data.data;
 
-      return matchData;
+      // Transform nested data for easier access
+      const transformedData = {
+        id: rawData.id,
+        status: rawData.status,
+        note: rawData.note,
+
+        // Teams
+        localteam: rawData.localteam?.data || {
+          id: rawData.localteam_id,
+          name: '',
+          code: '',
+        },
+        visitorteam: rawData.visitorteam?.data || {
+          id: rawData.visitorteam_id,
+          name: '',
+          code: '',
+        },
+
+        // Extract batting data (already in array format in API)
+        batting: rawData.batting || [],
+
+        // Extract bowling data
+        bowling: rawData.bowling || [],
+
+        // Extract scoreboards
+        scoreboards: rawData.scoreboards || [],
+
+        // Handle ball-by-ball data if available
+        balls: rawData.balls || [],
+
+        // Extract runs data
+        runs: rawData.runs || [],
+
+        // Add lineup data
+        lineup: rawData.lineup || [],
+
+        // Add venue information
+        venue: rawData.venue?.data,
+
+        // Add toss information
+        toss: rawData.toss_won_team_id,
+
+        // Add man of the match
+        manOfMatch: rawData.manofmatch?.data,
+      };
+
+      console.log(
+        `Processing data: ${transformedData.scoreboards.length} scoreboards, ${
+          transformedData.batting.length
+        } batsmen, ${transformedData.bowling.length} bowlers, lineup: ${
+          transformedData.lineup.length || 0
+        }`
+      );
+
+      return transformedData;
     } else {
-      console.log('No valid data received from livescores endpoint');
+      console.log('No valid data received from API');
+      throw new Error('Invalid API response format');
     }
   } catch (error: any) {
-    console.error('Error fetching live match data:', error.message);
+    console.error('Error fetching match data:', error.message);
 
     if (error.response) {
       console.error(`Status: ${error.response.status}`);
-      console.error('Response data:', error.response.data);
+      console.error('Response error:', error.response.data);
     }
 
-    // Try fallback to fixtures endpoint
-    try {
-      console.log(`Trying fallback to fixtures endpoint for match ${matchId}`);
-
-      const fixturesUrl = `https://cricket.sportmonks.com/api/v2.0/fixtures/${matchId}?api_token=${apiKey}&include=localteam,visitorteam,batting,bowling,scoreboards,balls,runs`;
-
-      const response = await axios.get(fixturesUrl);
-
-      if (response.status === 200 && response.data && response.data.data) {
-        console.log(
-          'Successfully fetched match details from fixtures endpoint'
-        );
-
-        // Log useful debug info
-        const matchData = response.data.data;
-        console.log('Raw match data received:', {
-          id: matchData.id,
-          status: matchData.status,
-          batting_players: matchData.batting?.length || 0,
-          bowling_players: matchData.bowling?.length || 0,
-          lineup_players: matchData.lineup?.length || 0,
-        });
-
-        return matchData;
-      }
-    } catch (fallbackError: any) {
-      console.error(
-        'Error fetching from fixtures endpoint:',
-        fallbackError.message
-      );
-
-      if (fallbackError.response) {
-        console.error(`Status: ${fallbackError.response.status}`);
-        console.error('Response data:', fallbackError.response.data);
-      }
-    }
+    throw error;
   }
-
-  console.log(
-    `No match data could be retrieved for match ID ${matchId}, returning mock data`
-  );
-  return MOCK_LIVE_MATCH_DATA;
 }
 
 /**

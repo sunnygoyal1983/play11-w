@@ -76,6 +76,8 @@ model Match {
   contests        Contest[]
   fantasyTeams    FantasyTeam[]
   playerStatistics PlayerStatistic[]
+  ballData        BallData[]
+  matchSummary    MatchSummary?
 }
 
 model Player {
@@ -245,4 +247,45 @@ model Setting {
   isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Ball-by-ball data
+model BallData {
+  id            String   @id @default(cuid())
+  matchId       String
+  match         Match    @relation(fields: [matchId], references: [id])
+  ballNumber    Int
+  over          Float
+  teamId        String?
+  batsmanId     String?
+  bowlerId      String?
+  runs          Int      @default(0)
+  isFour        Boolean  @default(false)
+  isSix         Boolean  @default(false)
+  isWicket      Boolean  @default(false)
+  wicketType    String?
+  outBatsmanId  String?
+  timestamp     DateTime @default(now())
+  inning        Int      @default(1)
+  sportMonkBallId String?
+  ballData      Json?    // Store the full raw data
+  
+  @@index([matchId])
+  @@index([sportMonkBallId])
+}
+
+// Match summary data
+model MatchSummary {
+  id              String   @id @default(cuid())
+  matchId         String   @unique
+  match           Match    @relation(fields: [matchId], references: [id])
+  teamAScore      String?
+  teamBScore      String?
+  overs           String?
+  currentInnings  Int      @default(1)
+  status          String?
+  lastUpdated     DateTime @default(now())
+  rawData         Json?    // Store the full raw data
+  
+  @@index([matchId])
 }
