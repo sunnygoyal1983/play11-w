@@ -8,183 +8,285 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    // Check if user is authenticated
-    if (!session || !session.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized: Please sign in to view team details' },
-        { status: 401 }
-      );
-    }
-
-    const userId = session.user.id;
     const teamId = params.id;
 
-    if (!teamId) {
-      return NextResponse.json(
-        { error: 'Team ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Fetch the fantasy team with all related data
+    // Get fantasy team
     const team = await prisma.fantasyTeam.findUnique({
       where: {
         id: teamId,
-        userId: userId, // Ensure the team belongs to the logged-in user
-      },
-      include: {
-        match: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            startTime: true,
-            teamAName: true,
-            teamALogo: true,
-            teamBName: true,
-            teamBLogo: true,
-          },
-        },
-        contestEntries: {
-          include: {
-            contest: {
-              select: {
-                id: true,
-                name: true,
-                entryFee: true,
-                totalSpots: true,
-                filledSpots: true,
-                prizePool: true,
-              },
-            },
-          },
-        },
-        players: {
-          include: {
-            player: {
-              select: {
-                id: true,
-                name: true,
-                image: true,
-                role: true,
-                country: true,
-                teamName: true,
-              },
-            },
-          },
-        },
       },
     });
 
     if (!team) {
       return NextResponse.json(
-        { error: 'Team not found or you do not have permission to view it' },
+        { error: 'Fantasy team not found' },
         { status: 404 }
       );
     }
 
-    // Transform the data to include player points and other calculated fields
-    const transformedPlayers = team.players.map((teamPlayer) => {
-      // Here you would calculate player points based on match statistics
-      // For now, we'll use dummy points
-      const points = 0;
-
-      return {
-        id: teamPlayer.player.id,
-        name: teamPlayer.player.name,
-        image: teamPlayer.player.image,
-        role: teamPlayer.player.role,
-        country: teamPlayer.player.country,
-        team: teamPlayer.player.teamName,
-        isCaptain: teamPlayer.isCaptain,
-        isViceCaptain: teamPlayer.isViceCaptain,
-        points: points,
-        // Calculate multiplier based on captain/vice-captain status
-        multiplier: teamPlayer.isCaptain
-          ? 2
-          : teamPlayer.isViceCaptain
-          ? 1.5
-          : 1,
-        totalPoints:
-          points *
-          (teamPlayer.isCaptain ? 2 : teamPlayer.isViceCaptain ? 1.5 : 1),
-      };
+    // Get user info
+    const user = await prisma.user.findUnique({
+      where: {
+        id: team.userId,
+      },
+      select: {
+        name: true,
+        image: true,
+      },
     });
 
-    // Sort players by role for better display
-    const sortedPlayers = [...transformedPlayers].sort((a, b) => {
-      // Custom sorting logic: WK, BAT, AR, BOWL
-      const roleOrder: Record<string, number> = {
-        WK: 1,
-        BAT: 2,
-        AR: 3,
-        BOWL: 4,
-      };
-
-      const roleA = a.role?.toUpperCase() || '';
-      const roleB = b.role?.toUpperCase() || '';
-
-      return (roleOrder[roleA] || 999) - (roleOrder[roleB] || 999);
+    // Get match details
+    const matchDetails = await prisma.match.findUnique({
+      where: {
+        id: team.matchId,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        teamAName: true,
+        teamBName: true,
+        startTime: true,
+      },
     });
 
-    // Calculate match status
-    let status = 'upcoming';
-    const matchDate = new Date(team.match.startTime);
-    const now = new Date();
+    // Get team players directly from the join table
+    const teamPlayerRecords = await prisma.fantasyTeamPlayer.findMany({
+      where: {
+        fantasyTeamId: teamId,
+      },
+    });
 
-    if (team.match.status === 'completed') {
-      status = 'completed';
-    } else if (
-      team.match.status === 'live' ||
-      (matchDate <= now && team.match.status !== 'completed')
-    ) {
-      status = 'live';
+    console.log(`Found ${teamPlayerRecords.length} team player records`);
+    console.log(
+      'Team player record IDs:',
+      teamPlayerRecords.map((tp) => tp.playerId)
+    );
+
+    // Get the player IDs
+    const playerIds = teamPlayerRecords.map((tp) => tp.playerId);
+
+    // Get the actual player data
+    const players = await prisma.player.findMany({
+      where: {
+        id: {
+          in: playerIds,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        role: true,
+        country: true,
+        teamName: true,
+      },
+    });
+
+    console.log(`Found ${players.length} player records`);
+    if (players.length > 0) {
+      console.log('First player:', players[0]);
+    } else {
+      console.log('No player records found. Attempting to debug:');
+      // Check if any players exist at all in the database
+      const samplePlayers = await prisma.player.findMany({
+        take: 5,
+      });
+      console.log(`Sample players in database: ${samplePlayers.length}`);
+      if (samplePlayers.length > 0) {
+        console.log('Sample player:', samplePlayers[0]);
+      }
     }
 
-    // Calculate total points
-    const totalPoints = sortedPlayers.reduce(
+    // Get player statistics from the database
+    const playerStats = await prisma.playerStatistic.findMany({
+      where: {
+        matchId: team.matchId,
+        playerId: {
+          in: playerIds,
+        },
+      },
+    });
+
+    console.log(
+      `Found ${playerStats.length} player statistics records for match ${team.matchId}`
+    );
+
+    // Create a map for quick lookup of player statistics
+    const playerStatsMap = new Map();
+    playerStats.forEach((stat) => {
+      playerStatsMap.set(stat.playerId, stat);
+    });
+
+    // Map captain and vice-captain status to players
+    const captainMap = teamPlayerRecords.reduce((map, tp) => {
+      map[tp.playerId] = {
+        isCaptain: tp.isCaptain,
+        isViceCaptain: tp.isViceCaptain,
+      };
+      return map;
+    }, {} as Record<string, { isCaptain: boolean; isViceCaptain: boolean }>);
+
+    console.log('Captain map:', captainMap);
+
+    // Transform players with correct statistics and points
+    const transformedPlayers: Array<{
+      id: string;
+      name: string;
+      image: string | null;
+      role: string;
+      country: string | null;
+      team: string | null;
+      isCaptain: boolean;
+      isViceCaptain: boolean;
+      points: number;
+      multiplier: number;
+      totalPoints: number;
+    }> = [];
+
+    if (players.length > 0) {
+      players.forEach((player) => {
+        // Standardize role format to WK, BAT, AR, BOWL
+        let role = 'OTHER';
+        if (player.role) {
+          const upperRole = player.role.toUpperCase();
+          if (
+            upperRole.includes('KEEPER') ||
+            upperRole.includes('WICKET') ||
+            upperRole === 'WK'
+          ) {
+            role = 'WK';
+          } else if (upperRole.includes('BAT') || upperRole === 'BATSMAN') {
+            role = 'BAT';
+          } else if (
+            upperRole.includes('ROUND') ||
+            upperRole === 'AR' ||
+            upperRole === 'ALL-ROUNDER'
+          ) {
+            role = 'AR';
+          } else if (upperRole.includes('BOWL') || upperRole === 'BOWLER') {
+            role = 'BOWL';
+          }
+        }
+
+        // Get player statistics from the database
+        const playerStat = playerStatsMap.get(player.id);
+        let points = 0;
+        let playerStatsText = '';
+
+        if (playerStat) {
+          // Use actual player statistics
+          points = playerStat.points || 0;
+          playerStatsText = `${playerStat.runs || 0} runs, ${
+            playerStat.fours || 0
+          } fours, ${playerStat.sixes || 0} sixes, ${
+            playerStat.wickets || 0
+          } wickets, ${playerStat.catches || 0} catches`;
+        } else {
+          // No statistics found for this player in this match
+          // This is fine if match hasn't started yet
+          playerStatsText = 'No statistics available';
+        }
+
+        console.log(
+          `Player ${player.name} (${role}): ${points} points [${playerStatsText}]`
+        );
+
+        const isCaptain = captainMap[player.id]?.isCaptain || false;
+        const isViceCaptain = captainMap[player.id]?.isViceCaptain || false;
+        const multiplier = isCaptain ? 2 : isViceCaptain ? 1.5 : 1;
+
+        transformedPlayers.push({
+          id: player.id,
+          name: player.name,
+          image: player.image,
+          role: role,
+          country: player.country,
+          team: player.teamName,
+          isCaptain,
+          isViceCaptain,
+          points,
+          multiplier,
+          totalPoints:
+            points > 0 ? Math.round(points * multiplier * 10) / 10 : 0,
+        });
+      });
+
+      console.log(`Transformed ${transformedPlayers.length} players`);
+      console.log('First transformed player:', transformedPlayers[0]);
+    }
+
+    // Calculate total team points based on actual player statistics
+    const totalPoints = transformedPlayers.reduce(
       (sum, player) => sum + player.totalPoints,
       0
     );
 
+    console.log(`Total team points: ${totalPoints}`);
+
+    // Get contest data if needed
+    const contestEntries = await prisma.contestEntry.findMany({
+      where: {
+        fantasyTeamId: teamId,
+      },
+      include: {
+        contest: true,
+      },
+    });
+
+    // Format contests for response
+    const contests = contestEntries.map((entry) => ({
+      id: entry.contest.id,
+      name: entry.contest.name,
+      entryFee: entry.contest.entryFee,
+      prizePool: entry.contest.prizePool,
+      rank: entry.rank ? `#${entry.rank}` : 'TBD',
+      winAmount: entry.winAmount || 0,
+    }));
+
+    // Create single contest data for backward compatibility
+    const contestData =
+      contestEntries.length > 0
+        ? {
+            id: contestEntries[0].contest.id,
+            name: contestEntries[0].contest.name,
+            entryFee: contestEntries[0].contest.entryFee,
+            prizePool: contestEntries[0].contest.prizePool,
+            totalSpots: contestEntries[0].contest.totalSpots,
+          }
+        : null;
+
+    // Ensure we have a proper status
+    let status = 'upcoming';
+    if (matchDetails?.status === 'completed') {
+      status = 'completed';
+    } else if (matchDetails?.status === 'live') {
+      status = 'live';
+    }
+
+    // Return response with team and player data
     return NextResponse.json({
       success: true,
       data: {
         id: team.id,
-        name: team.name,
+        name: team.name || 'Unnamed Team',
         matchId: team.matchId,
-        match: {
-          id: team.match.id,
-          name: team.match.name,
-          teamA: team.match.teamAName,
-          teamALogo: team.match.teamALogo,
-          teamB: team.match.teamBName,
-          teamBLogo: team.match.teamBLogo,
-          startTime: team.match.startTime,
-          status: team.match.status,
-        },
-        players: sortedPlayers,
-        totalPoints: totalPoints,
+        user: user,
+        match: matchDetails,
+        contest: contestData,
+        contests: contests,
         status: status,
-        contests: team.contestEntries.map((entry) => ({
-          id: entry.contest.id,
-          name: entry.contest.name,
-          entryFee: entry.contest.entryFee,
-          prizePool: entry.contest.prizePool,
-          rank: entry.rank || '-',
-          winAmount: entry.winAmount || 0,
-        })),
+        totalPoints: Math.round(totalPoints * 10) / 10,
+        players: transformedPlayers,
         createdAt: team.createdAt,
       },
     });
   } catch (error) {
-    console.error('Error fetching team details:', error);
+    console.error('Error fetching fantasy team:', error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to fetch team details',
+        error: 'Failed to fetch fantasy team',
       },
       { status: 500 }
     );

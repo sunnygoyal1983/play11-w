@@ -12,7 +12,7 @@ interface Player {
   id: string;
   name: string;
   image: string | null;
-  role: string | null;
+  role: string;
   country: string | null;
   team: string | null;
   isCaptain: boolean;
@@ -72,6 +72,7 @@ export default function TeamDetailsPage() {
     const fetchTeamDetails = async () => {
       try {
         setLoading(true);
+        console.log('Fetching team details for ID:', teamId);
         const response = await fetch(`/api/user/teams/${teamId}`);
 
         if (!response.ok) {
@@ -80,7 +81,23 @@ export default function TeamDetailsPage() {
         }
 
         const data = await response.json();
+        console.log('Team API response:', data);
+
         if (data.success && data.data) {
+          console.log('Team data structure:', {
+            id: data.data.id,
+            name: data.data.name,
+            playersArray: Array.isArray(data.data.players),
+            playersCount: data.data.players?.length || 0,
+          });
+
+          // Detailed player data logging
+          if (data.data.players && data.data.players.length > 0) {
+            console.log('First player sample:', data.data.players[0]);
+          } else {
+            console.log('No players found in API response');
+          }
+
           setTeam(data.data);
         } else {
           throw new Error('Invalid response format');
@@ -173,15 +190,46 @@ export default function TeamDetailsPage() {
     );
   }
 
+  // Make sure players array exists
+  if (!team.players || !Array.isArray(team.players)) {
+    console.error('Players array is missing or not an array:', team.players);
+    team.players = [];
+  }
+
   // Group players by role
   const playersByRole = team.players.reduce((acc, player) => {
-    const role = player.role?.toUpperCase() || 'OTHER';
+    console.log('Processing player for grouping:', {
+      id: player.id,
+      name: player.name,
+      role: player.role,
+      roleType: typeof player.role,
+    });
+
+    // Make sure role is properly capitalized and defaulted
+    const role =
+      typeof player.role === 'string' ? player.role.toUpperCase() : 'OTHER';
+
+    // Create the role category if it doesn't exist
     if (!acc[role]) {
       acc[role] = [];
     }
+
+    // Add the player to that role
     acc[role].push(player);
     return acc;
   }, {} as Record<string, Player[]>);
+
+  // Debug the grouped players
+  console.log('Players grouped by role:', {
+    totalPlayers: team.players.length,
+    roleCount: Object.keys(playersByRole).length,
+    roles: Object.keys(playersByRole),
+    playersByRoleWK: playersByRole['WK'] ? playersByRole['WK'].length : 0,
+    playersByRoleBAT: playersByRole['BAT'] ? playersByRole['BAT'].length : 0,
+    playersByRoleAR: playersByRole['AR'] ? playersByRole['AR'].length : 0,
+    playersByRoleBOWL: playersByRole['BOWL'] ? playersByRole['BOWL'].length : 0,
+    otherPlayers: playersByRole['OTHER'] ? playersByRole['OTHER'].length : 0,
+  });
 
   // Define role order and labels
   const roleOrder = ['WK', 'BAT', 'AR', 'BOWL'];
@@ -252,25 +300,47 @@ export default function TeamDetailsPage() {
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
           <h2 className="text-xl font-semibold mb-4">Team Stats</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gray-50 p-3 rounded">
+            <div className="bg-gray-50 p-3 rounded text-center">
               <p className="text-gray-500 text-sm">Total Points</p>
-              <p className="font-medium text-2xl">{team.totalPoints}</p>
+              <p className="font-medium text-2xl text-indigo-600">
+                {typeof team.totalPoints === 'number'
+                  ? parseFloat(team.totalPoints.toString()).toFixed(1)
+                  : '0.0'}
+              </p>
             </div>
-            <div className="bg-gray-50 p-3 rounded">
+            <div className="bg-gray-50 p-3 rounded text-center">
               <p className="text-gray-500 text-sm">Captain</p>
-              <p className="font-medium">
-                {team.players.find((p) => p.isCaptain)?.name || 'None'}
-              </p>
+              <div className="flex justify-center items-center">
+                {team.players.find((p) => p.isCaptain)?.image ? (
+                  <img
+                    src={team.players.find((p) => p.isCaptain)?.image || ''}
+                    alt="Captain"
+                    className="w-6 h-6 rounded-full mr-2"
+                  />
+                ) : null}
+                <p className="font-medium">
+                  {team.players.find((p) => p.isCaptain)?.name || 'None'}
+                </p>
+              </div>
             </div>
-            <div className="bg-gray-50 p-3 rounded">
+            <div className="bg-gray-50 p-3 rounded text-center">
               <p className="text-gray-500 text-sm">Vice Captain</p>
-              <p className="font-medium">
-                {team.players.find((p) => p.isViceCaptain)?.name || 'None'}
-              </p>
+              <div className="flex justify-center items-center">
+                {team.players.find((p) => p.isViceCaptain)?.image ? (
+                  <img
+                    src={team.players.find((p) => p.isViceCaptain)?.image || ''}
+                    alt="Vice Captain"
+                    className="w-6 h-6 rounded-full mr-2"
+                  />
+                ) : null}
+                <p className="font-medium">
+                  {team.players.find((p) => p.isViceCaptain)?.name || 'None'}
+                </p>
+              </div>
             </div>
-            <div className="bg-gray-50 p-3 rounded">
+            <div className="bg-gray-50 p-3 rounded text-center">
               <p className="text-gray-500 text-sm">Contests Joined</p>
-              <p className="font-medium">{team.contests.length}</p>
+              <p className="font-medium text-xl">{team.contests.length}</p>
             </div>
           </div>
         </div>
@@ -279,27 +349,132 @@ export default function TeamDetailsPage() {
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
           <h2 className="text-xl font-semibold mb-4">Players</h2>
 
-          {roleOrder.map(
-            (role) =>
-              playersByRole[role] &&
-              playersByRole[role].length > 0 && (
-                <div key={role} className="mb-6">
-                  <h3 className="text-lg font-medium mb-3 text-gray-700">
-                    {roleLabels[role]} ({playersByRole[role].length})
+          {team.players.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p className="mb-2">No players found for this team.</p>
+              <p className="text-sm">
+                There might be an issue with the team data or the players
+                haven&apos;t been loaded yet.
+              </p>
+              {team.status === 'upcoming' && (
+                <Link
+                  href={`/teams/${team.id}/edit`}
+                  className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+                >
+                  Edit Team
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              {roleOrder.map(
+                (role) =>
+                  playersByRole[role] &&
+                  playersByRole[role].length > 0 && (
+                    <div key={role} className="mb-6">
+                      <h3 className="text-lg font-medium mb-3 text-gray-700 flex items-center">
+                        <span
+                          className={`inline-block w-3 h-3 rounded-full mr-2 ${
+                            role === 'WK'
+                              ? 'bg-yellow-500'
+                              : role === 'BAT'
+                              ? 'bg-blue-500'
+                              : role === 'AR'
+                              ? 'bg-green-500'
+                              : 'bg-red-500'
+                          }`}
+                        ></span>
+                        {roleLabels[role]} ({playersByRole[role].length})
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {playersByRole[role].map((player) => (
+                          <div
+                            key={player.id}
+                            className="flex items-center bg-gray-50 p-3 rounded hover:shadow-md transition-shadow"
+                          >
+                            <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3 relative">
+                              {player.image ? (
+                                <Image
+                                  src={player.image}
+                                  alt={player.name}
+                                  width={48}
+                                  height={48}
+                                  className="object-cover w-full h-full"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src =
+                                      '/default-player.png';
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+                                  {player.name.substring(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                              {player.isCaptain && (
+                                <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                                  C
+                                </span>
+                              )}
+                              {player.isViceCaptain && (
+                                <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                                  VC
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex-grow">
+                              <div className="flex flex-col">
+                                <p className="font-medium text-gray-900">
+                                  {player.name}
+                                </p>
+                                <div className="flex items-center">
+                                  <p className="text-xs text-gray-500 inline-flex items-center">
+                                    <span
+                                      className={`inline-block w-2 h-2 rounded-full mr-1 ${
+                                        player.team === team.match.teamA
+                                          ? 'bg-blue-500'
+                                          : 'bg-yellow-500'
+                                      }`}
+                                    ></span>
+                                    {player.team || 'Unknown Team'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-lg text-green-600">
+                                {player.totalPoints.toFixed(1)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {player.points.toFixed(1)} × {player.multiplier}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+              )}
+
+              {/* Handle "OTHER" category if it exists */}
+              {playersByRole['OTHER'] && playersByRole['OTHER'].length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium mb-3 text-gray-700 flex items-center">
+                    <span className="inline-block w-3 h-3 rounded-full mr-2 bg-gray-500"></span>
+                    Other Players ({playersByRole['OTHER'].length})
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {playersByRole[role].map((player) => (
+                    {playersByRole['OTHER'].map((player) => (
                       <div
                         key={player.id}
-                        className="flex items-center bg-gray-50 p-3 rounded"
+                        className="flex items-center bg-gray-50 p-3 rounded hover:shadow-md transition-shadow"
                       >
-                        <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3 relative">
                           {player.image ? (
                             <Image
                               src={player.image}
                               alt={player.name}
-                              width={40}
-                              height={40}
+                              width={48}
+                              height={48}
                               className="object-cover w-full h-full"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src =
@@ -311,100 +486,50 @@ export default function TeamDetailsPage() {
                               {player.name.substring(0, 2).toUpperCase()}
                             </div>
                           )}
+                          {player.isCaptain && (
+                            <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                              C
+                            </span>
+                          )}
+                          {player.isViceCaptain && (
+                            <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                              VC
+                            </span>
+                          )}
                         </div>
                         <div className="flex-grow">
-                          <div className="flex items-center">
-                            <p className="font-medium">{player.name}</p>
-                            {player.isCaptain && (
-                              <span className="ml-1 bg-indigo-100 text-indigo-800 text-xs px-1 rounded">
-                                C
-                              </span>
-                            )}
-                            {player.isViceCaptain && (
-                              <span className="ml-1 bg-blue-100 text-blue-800 text-xs px-1 rounded">
-                                VC
-                              </span>
-                            )}
+                          <div className="flex flex-col">
+                            <p className="font-medium text-gray-900">
+                              {player.name}
+                            </p>
+                            <div className="flex items-center">
+                              <p className="text-xs text-gray-500 inline-flex items-center">
+                                <span
+                                  className={`inline-block w-2 h-2 rounded-full mr-1 ${
+                                    player.team === team.match.teamA
+                                      ? 'bg-blue-500'
+                                      : 'bg-yellow-500'
+                                  }`}
+                                ></span>
+                                {player.team || 'Unknown Team'}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-500">
-                            {player.team || 'Unknown Team'}
-                          </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">
-                            {player.totalPoints} pts
+                          <p className="font-semibold text-lg text-green-600">
+                            {player.totalPoints.toFixed(1)}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {player.points} × {player.multiplier}
+                            {player.points.toFixed(1)} × {player.multiplier}
                           </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              )
-          )}
-
-          {/* Handle "OTHER" category if it exists */}
-          {playersByRole['OTHER'] && playersByRole['OTHER'].length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-3 text-gray-700">
-                Other Players ({playersByRole['OTHER'].length})
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {playersByRole['OTHER'].map((player) => (
-                  <div
-                    key={player.id}
-                    className="flex items-center bg-gray-50 p-3 rounded"
-                  >
-                    {/* Same player card as above */}
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3">
-                      {player.image ? (
-                        <Image
-                          src={player.image}
-                          alt={player.name}
-                          width={40}
-                          height={40}
-                          className="object-cover w-full h-full"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              '/default-player.png';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
-                          {player.name.substring(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-grow">
-                      <div className="flex items-center">
-                        <p className="font-medium">{player.name}</p>
-                        {player.isCaptain && (
-                          <span className="ml-1 bg-indigo-100 text-indigo-800 text-xs px-1 rounded">
-                            C
-                          </span>
-                        )}
-                        {player.isViceCaptain && (
-                          <span className="ml-1 bg-blue-100 text-blue-800 text-xs px-1 rounded">
-                            VC
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {player.team || 'Unknown Team'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{player.totalPoints} pts</p>
-                      <p className="text-xs text-gray-500">
-                        {player.points} × {player.multiplier}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
 
@@ -460,11 +585,17 @@ export default function TeamDetailsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         ₹{contest.prizePool}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {contest.rank}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {contest.rank === 'TBD' ? (
+                          <span className="text-gray-400">TBD</span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                            {contest.rank}
+                          </span>
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ₹{contest.winAmount}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                        {contest.winAmount > 0 ? `₹${contest.winAmount}` : '-'}
                       </td>
                     </tr>
                   ))}

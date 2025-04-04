@@ -12,6 +12,13 @@ export async function GET(
     // Check if match exists
     const match = await prisma.match.findUnique({
       where: { id: matchId },
+      select: {
+        id: true,
+        name: true,
+        teamAName: true,
+        teamBName: true,
+        status: true,
+      },
     });
 
     if (!match) {
@@ -67,12 +74,50 @@ export async function GET(
       runOuts: stat.runOuts,
     }));
 
+    // If no player statistics are available yet, return a default response structure
+    if (formattedStats.length === 0) {
+      console.log(
+        `No player statistics found for match ${matchId}, returning default structure`
+      );
+
+      return NextResponse.json({
+        success: true,
+        data: [],
+        matchDetails: {
+          id: match.id,
+          name: match.name,
+          status: match.status,
+          teams: {
+            teamA: {
+              name: match.teamAName,
+            },
+            teamB: {
+              name: match.teamBName,
+            },
+          },
+        },
+      });
+    }
+
     console.log(
       `Found ${formattedStats.length} player statistics for match ${matchId}`
     );
     return NextResponse.json({
       success: true,
       data: formattedStats,
+      matchDetails: {
+        id: match.id,
+        name: match.name,
+        status: match.status,
+        teams: {
+          teamA: {
+            name: match.teamAName,
+          },
+          teamB: {
+            name: match.teamBName,
+          },
+        },
+      },
     });
   } catch (error) {
     console.error('Error fetching player statistics:', error);

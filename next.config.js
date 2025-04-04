@@ -30,6 +30,8 @@ const nextConfig = {
   experimental: {
     outputStandalone: true,
     disableTracing: true,
+    // Enable server actions (required for 'use server' directive)
+    serverActions: true,
     // Memory optimization
     memoryBasedWorkersCount: true,
     // CSS optimization with critters package
