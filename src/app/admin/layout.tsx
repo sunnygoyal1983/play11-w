@@ -11,6 +11,7 @@ import {
   FaChartLine,
   FaBars,
   FaTimes,
+  FaBroom,
 } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 import AdminProtected from '@/components/AdminProtected';
@@ -95,6 +96,16 @@ export default function AdminLayout({
                 >
                   <FaMoneyBillWave className="mr-3" />
                   Transactions
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/cleanup-transactions"
+                  className="flex items-center p-3 rounded-md hover:bg-indigo-700 transition-colors"
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <FaBroom className="mr-3" />
+                  Clean Transactions
                 </Link>
               </li>
               <li>

@@ -10,6 +10,7 @@ import {
   FaSpinner,
   FaCheckCircle,
   FaTimesCircle,
+  FaUsers,
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
@@ -30,6 +31,7 @@ export default function LiveMatchesPage() {
     Record<string, { loading: boolean; success?: boolean }>
   >({});
   const [checkingMatches, setCheckingMatches] = useState(false);
+  const [syncingLineups, setSyncingLineups] = useState(false);
 
   // Check if user is admin, redirect if not
   useEffect(() => {
@@ -221,6 +223,28 @@ export default function LiveMatchesPage() {
     }
   };
 
+  // Function to manually sync lineups
+  const syncLineups = async () => {
+    try {
+      setSyncingLineups(true);
+      const response = await fetch('/api/cron/sync-lineups');
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(
+          `Synced lineups for ${data.results?.length || 0} matches`
+        );
+      } else {
+        toast.error('Failed to sync lineups');
+      }
+    } catch (error) {
+      console.error('Error syncing lineups:', error);
+      toast.error('Error syncing lineups');
+    } finally {
+      setSyncingLineups(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-8">
@@ -247,6 +271,19 @@ export default function LiveMatchesPage() {
                 Start System
               </button>
             )}
+
+            <button
+              onClick={syncLineups}
+              disabled={syncingLineups}
+              className="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 focus:outline-none"
+            >
+              {syncingLineups ? (
+                <FaSpinner className="animate-spin mr-1" />
+              ) : (
+                <FaUsers className="mr-1" />
+              )}
+              Sync Lineups
+            </button>
 
             <button
               onClick={checkUpcomingMatches}

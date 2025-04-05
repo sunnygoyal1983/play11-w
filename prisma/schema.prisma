@@ -78,6 +78,7 @@ model Match {
   playerStatistics PlayerStatistic[]
   ballData        BallData[]
   matchSummary    MatchSummary?
+  lineup          MatchLineup?     // Relation to lineup
 }
 
 model Player {
@@ -286,6 +287,22 @@ model MatchSummary {
   status          String?
   lastUpdated     DateTime @default(now())
   rawData         Json?    // Store the full raw data
+  
+  @@index([matchId])
+}
+
+// Match lineup data
+model MatchLineup {
+  id                  String   @id @default(cuid())
+  matchId             String   @unique
+  match               Match    @relation(fields: [matchId], references: [id])
+  teamAPlayers        Json     // Array of team A player data
+  teamBPlayers        Json     // Array of team B player data
+  teamASubstitutes    Json?    // Array of team A substitute player data
+  teamBSubstitutes    Json?    // Array of team B substitute player data
+  tossWinner          String?  // Team ID that won the toss
+  isTossComplete      Boolean  @default(false)
+  lastUpdated         DateTime @default(now())
   
   @@index([matchId])
 }

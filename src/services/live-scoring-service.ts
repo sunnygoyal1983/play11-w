@@ -928,15 +928,52 @@ export async function updateLiveMatchPlayerStats(
               matchData.runs?.[1]?.wickets || 0
             }`;
 
+        // Check if match is actually completed
+        let matchStatus = 'live';
+        if (
+          matchData.status === 'Finished' ||
+          matchData.status === 'finished' ||
+          matchData.status === 'completed' ||
+          matchData.note?.includes('won by') ||
+          (matchData.runs?.length === 2 &&
+            matchData.runs[1]?.overs === matchData.runs[1]?.total_overs)
+        ) {
+          matchStatus = 'completed';
+          console.log(
+            `Match ${matchId} is detected as completed. Status: ${matchData.status}, Note: ${matchData.note}`
+          );
+        }
+
         await prisma.match.update({
           where: { id: matchId },
           data: {
-            status: 'live',
+            status: matchStatus,
             result: matchResult,
+            endTime: matchStatus === 'completed' ? new Date() : undefined,
           },
         });
 
-        console.log(`Updated match status and result: ${matchResult}`);
+        console.log(
+          `Updated match status to ${matchStatus} and result: ${matchResult}`
+        );
+
+        // If match is completed, trigger contest finalization
+        if (matchStatus === 'completed') {
+          try {
+            const {
+              triggerContestFinalization,
+            } = require('./live-match-scheduler');
+            await triggerContestFinalization(matchId);
+            console.log(
+              `Triggered contest finalization for completed match ${matchId}`
+            );
+          } catch (finalizationError) {
+            console.error(
+              `Error finalizing contests for match ${matchId}:`,
+              finalizationError
+            );
+          }
+        }
       } catch (matchUpdateError) {
         console.error(`Error updating match status:`, matchUpdateError);
         // Continue anyway, this shouldn't fail the whole operation

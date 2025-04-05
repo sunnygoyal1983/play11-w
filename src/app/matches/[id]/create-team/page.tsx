@@ -69,6 +69,44 @@ export default function CreateTeam() {
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
 
+  const [showLineupInfo, setShowLineupInfo] = useState(false);
+  const [lineupAvailable, setLineupAvailable] = useState(false);
+  const [officialLineups, setOfficialLineups] = useState<{
+    teamA: Array<{
+      id: string;
+      name: string;
+      role: string;
+      image?: string;
+      isSubstitute?: boolean;
+    }>;
+    teamB: Array<{
+      id: string;
+      name: string;
+      role: string;
+      image?: string;
+      isSubstitute?: boolean;
+    }>;
+    teamASubstitutes: Array<{
+      id: string;
+      name: string;
+      role: string;
+      image?: string;
+      isSubstitute?: boolean;
+    }>;
+    teamBSubstitutes: Array<{
+      id: string;
+      name: string;
+      role: string;
+      image?: string;
+      isSubstitute?: boolean;
+    }>;
+  }>({
+    teamA: [],
+    teamB: [],
+    teamASubstitutes: [],
+    teamBSubstitutes: [],
+  });
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -81,28 +119,52 @@ export default function CreateTeam() {
 
   // Fetch match data and players
   const fetchMatchData = async () => {
-    console.log('Fetching match data for match ID:', matchId);
-    if (!matchId) return;
-
     try {
-      setLoading(true);
-      setError(null);
+      if (!matchId) {
+        console.error('Match ID is missing');
+        setError('Match ID is missing');
+        return;
+      }
 
-      // Fetch match details
-      const matchResponse = await fetch(`/api/matches/${matchId}`);
+      // Fetch match details and players in parallel
+      console.log('Fetching match data for ID:', matchId);
+
+      const [matchResponse, lineupResponse] = await Promise.all([
+        fetch(`/api/matches/${matchId}`),
+        fetch(`/api/matches/${matchId}/lineup`),
+      ]);
+
       if (!matchResponse.ok) {
         throw new Error(
           `Failed to fetch match data: ${matchResponse.statusText}`
         );
       }
-      const matchData = await matchResponse.json();
-      const match = matchData.data;
-      console.log('Match data:', match);
-      setMatch(match);
 
-      // Try multiple sources for player data
-      let playersData = [];
-      let players = [];
+      const matchData = await matchResponse.json();
+      setMatch(matchData);
+
+      // Check if lineup data was returned (available after toss)
+      const hasLineup = lineupResponse.ok;
+      let lineupData = null;
+
+      if (hasLineup) {
+        lineupData = await lineupResponse.json();
+        console.log('Lineup data available:', lineupData);
+        if (lineupData.success && lineupData.tossComplete) {
+          setLineupAvailable(true);
+          setOfficialLineups({
+            teamA: lineupData.teamA || [],
+            teamB: lineupData.teamB || [],
+            teamASubstitutes: lineupData.teamASubstitutes || [],
+            teamBSubstitutes: lineupData.teamBSubstitutes || [],
+          });
+        }
+      }
+
+      // 1. First try to get players directly from the match players API
+      console.log('Fetching players for match...');
+      let playersData: any[] = [];
+      let players: any[] = [];
 
       // 1. First try the new dedicated match players API
       try {
@@ -825,6 +887,148 @@ export default function CreateTeam() {
     console.log('Team valid:', valid);
   }, [selectedPlayers, teamName]);
 
+  // Add this section to your UI where appropriate
+  const renderLineupInfoSection = () => {
+    if (!lineupAvailable) return null;
+
+    return (
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold">Official Team Lineups</h3>
+          <div className="flex space-x-2">
+            <button
+              onClick={async () => {
+                // Add refresh=true to force a refresh from the API
+                const lineupResponse = await fetch(
+                  `/api/matches/${matchId}/lineup?refresh=true`
+                );
+                if (lineupResponse.ok) {
+                  const lineupData = await lineupResponse.json();
+                  if (lineupData.success && lineupData.tossComplete) {
+                    setLineupAvailable(true);
+                    setOfficialLineups({
+                      teamA: lineupData.teamA || [],
+                      teamB: lineupData.teamB || [],
+                      teamASubstitutes: lineupData.teamASubstitutes || [],
+                      teamBSubstitutes: lineupData.teamBSubstitutes || [],
+                    });
+                  }
+                }
+              }}
+              className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+            >
+              Refresh Lineup
+            </button>
+            <button
+              onClick={() => setShowLineupInfo(!showLineupInfo)}
+              className="text-sm text-indigo-600 hover:text-indigo-800"
+            >
+              {showLineupInfo ? 'Hide Lineups' : 'Show Lineups'}
+            </button>
+          </div>
+        </div>
+
+        {showLineupInfo && (
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">
+                  {match.teamAName} Playing XI
+                </h4>
+                {officialLineups.teamA.length > 0 ? (
+                  <ul className="space-y-1 text-sm">
+                    {officialLineups.teamA.map((player, index) => (
+                      <li key={`team-a-${index}`} className="flex items-center">
+                        <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-800 rounded-full mr-2 text-xs">
+                          {index + 1}
+                        </span>
+                        {player.name}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 text-sm">
+                    No lineup available yet
+                  </p>
+                )}
+
+                {officialLineups.teamASubstitutes &&
+                  officialLineups.teamASubstitutes.length > 0 && (
+                    <>
+                      <h4 className="font-medium text-gray-900 mb-2 mt-4">
+                        {match.teamAName} Substitutes
+                      </h4>
+                      <ul className="space-y-1 text-sm">
+                        {officialLineups.teamASubstitutes.map(
+                          (player, index) => (
+                            <li
+                              key={`team-a-sub-${index}`}
+                              className="flex items-center"
+                            >
+                              <span className="w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-600 rounded-full mr-2 text-xs">
+                                S{index + 1}
+                              </span>
+                              {player.name}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </>
+                  )}
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">
+                  {match.teamBName} Playing XI
+                </h4>
+                {officialLineups.teamB.length > 0 ? (
+                  <ul className="space-y-1 text-sm">
+                    {officialLineups.teamB.map((player, index) => (
+                      <li key={`team-b-${index}`} className="flex items-center">
+                        <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-800 rounded-full mr-2 text-xs">
+                          {index + 1}
+                        </span>
+                        {player.name}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 text-sm">
+                    No lineup available yet
+                  </p>
+                )}
+
+                {officialLineups.teamBSubstitutes &&
+                  officialLineups.teamBSubstitutes.length > 0 && (
+                    <>
+                      <h4 className="font-medium text-gray-900 mb-2 mt-4">
+                        {match.teamBName} Substitutes
+                      </h4>
+                      <ul className="space-y-1 text-sm">
+                        {officialLineups.teamBSubstitutes.map(
+                          (player, index) => (
+                            <li
+                              key={`team-b-sub-${index}`}
+                              className="flex items-center"
+                            >
+                              <span className="w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-600 rounded-full mr-2 text-xs">
+                                S{index + 1}
+                              </span>
+                              {player.name}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </>
+                  )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -931,6 +1135,9 @@ export default function CreateTeam() {
             </div>
           </div>
         </div>
+
+        {/* Lineup Info Section */}
+        {renderLineupInfoSection()}
 
         {showCaptainSelection ? (
           /* Captain Selection View */

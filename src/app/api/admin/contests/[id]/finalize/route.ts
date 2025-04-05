@@ -6,6 +6,153 @@ import { authOptions } from '@/lib/auth-options';
 const prisma = new PrismaClient();
 
 /**
+ * Process a contest winner, update their wallet and create transaction record
+ * This function includes retry logic and verification to ensure transactions are created
+ */
+async function processContestWinner(
+  entry: any,
+  contest: any,
+  winAmount: number,
+  retryCount = 0
+) {
+  const maxRetries = 3;
+
+  try {
+    // Check if this entry already has a transaction (to prevent duplicates)
+    const existingTransaction = await prisma.transaction.findFirst({
+      where: {
+        userId: entry.userId,
+        type: 'contest_win',
+        status: 'completed',
+        reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
+      },
+    });
+
+    if (existingTransaction) {
+      console.log(
+        `Transaction already exists for user ${entry.userId}, contest ${contest.id}, rank ${entry.rank}`
+      );
+
+      // Verify contest entry has winAmount set
+      const contestEntry = await prisma.contestEntry.findUnique({
+        where: { id: entry.id },
+      });
+
+      if (!contestEntry?.winAmount) {
+        // Update just the winAmount if missing
+        await prisma.contestEntry.update({
+          where: { id: entry.id },
+          data: { winAmount },
+        });
+        console.log(`Updated missing winAmount for entry ${entry.id}`);
+      }
+
+      return;
+    }
+
+    // Process everything in a transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Update contest entry with win amount
+      await tx.contestEntry.update({
+        where: { id: entry.id },
+        data: { winAmount },
+      });
+
+      // 2. Add to user wallet
+      await tx.user.update({
+        where: { id: entry.userId },
+        data: {
+          walletBalance: {
+            increment: winAmount,
+          },
+        },
+      });
+
+      // 3. Create transaction record
+      await tx.transaction.create({
+        data: {
+          userId: entry.userId,
+          amount: winAmount,
+          type: 'contest_win',
+          status: 'completed',
+          reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
+        },
+      });
+    });
+
+    // Verify transaction was created successfully
+    const verifyTransaction = await prisma.transaction.findFirst({
+      where: {
+        userId: entry.userId,
+        type: 'contest_win',
+        status: 'completed',
+        reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
+      },
+    });
+
+    if (!verifyTransaction) {
+      throw new Error(
+        'Transaction verification failed - transaction not found after creation'
+      );
+    }
+
+    console.log(
+      `Successfully processed win for user ${entry.userId}, contest ${contest.id}, rank ${entry.rank}, amount ${winAmount}`
+    );
+  } catch (error) {
+    console.error(
+      `Error processing contest winner for entry ${entry.id}:`,
+      error
+    );
+
+    // Retry logic
+    if (retryCount < maxRetries) {
+      console.log(
+        `Retrying process contest winner (${retryCount + 1}/${maxRetries})...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      return processContestWinner(entry, contest, winAmount, retryCount + 1);
+    } else {
+      // Log critical error for manual intervention
+      console.error(
+        `CRITICAL: Failed to process contest winner after ${maxRetries} retries.`,
+        {
+          userId: entry.userId,
+          contestId: contest.id,
+          entryId: entry.id,
+          rank: entry.rank,
+          winAmount,
+        }
+      );
+
+      // Create an error record in the database for later processing
+      try {
+        await prisma.setting.create({
+          data: {
+            key: `failed_contest_win_${entry.id}_${Date.now()}`,
+            value: JSON.stringify({
+              userId: entry.userId,
+              contestId: contest.id,
+              entryId: entry.id,
+              rank: entry.rank,
+              winAmount,
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString(),
+            }),
+            type: 'json',
+            category: 'error_log',
+            description:
+              'Failed contest win transaction that needs manual processing',
+          },
+        });
+      } catch (logError) {
+        console.error('Failed to log error to database:', logError);
+      }
+    }
+  }
+}
+
+/**
  * POST - Finalize contest rankings and distribute prizes
  * This endpoint should be called when a match is completed
  */
@@ -123,70 +270,47 @@ export async function POST(
       orderBy: { rank: 'asc' },
     });
 
-    // Transaction to update entries and distribute prizes
-    const operations = [];
-
+    // First, update entry ranks and points (this can be done outside the main transaction)
     for (const entry of rankedEntries) {
-      // Update the entry with rank and points
-      operations.push(
-        prisma.contestEntry.update({
+      try {
+        await prisma.contestEntry.update({
           where: { id: entry.id },
           data: {
             rank: entry.rank,
             points: entry.calculatedPoints,
           },
-        })
-      );
-
-      // Distribute prizes to winners
-      const prizeForRank = prizeBreakup.find((p) => p.rank === entry.rank);
-      if (prizeForRank) {
-        const winAmount = prizeForRank.prize;
-
-        // Update the contest entry with win amount
-        operations.push(
-          prisma.contestEntry.update({
-            where: { id: entry.id },
-            data: {
-              winAmount,
-            },
-          })
+        });
+      } catch (error) {
+        console.error(
+          `Error updating rank and points for entry ${entry.id}:`,
+          error
         );
-
-        // Add to user wallet
-        operations.push(
-          prisma.user.update({
-            where: { id: entry.userId },
-            data: {
-              walletBalance: {
-                increment: winAmount,
-              },
-            },
-          })
-        );
-
-        // Create transaction record
-        operations.push(
-          prisma.transaction.create({
-            data: {
-              userId: entry.userId,
-              amount: winAmount,
-              type: 'contest_win',
-              status: 'completed',
-              reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
-            },
-          })
-        );
+        // Continue to other entries if one fails
       }
     }
 
-    // Execute all operations in a transaction
-    await prisma.$transaction(operations);
+    // Process winners and create transactions
+    const processedWinners = [];
+    for (const entry of rankedEntries) {
+      const prizeForRank = prizeBreakup.find((p) => p.rank === entry.rank);
+      if (prizeForRank) {
+        const winAmount = prizeForRank.prize;
+        // For each winner, process in its own transaction with retries
+        await processContestWinner(entry, contest, winAmount);
+        processedWinners.push({
+          userId: entry.userId,
+          userName: entry.user.name,
+          rank: entry.rank,
+          amount: winAmount,
+        });
+      }
+    }
 
     return NextResponse.json({
       message: 'Contest finalized successfully',
       totalEntries: rankedEntries.length,
       totalPrizesDistributed: prizeBreakup.reduce((sum, p) => sum + p.prize, 0),
+      winners: processedWinners,
     });
   } catch (error) {
     console.error('Error finalizing contest:', error);

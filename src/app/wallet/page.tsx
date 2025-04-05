@@ -51,6 +51,7 @@ export default function Wallet() {
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [withdrawalMethod, setWithdrawalMethod] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [transactionFilter, setTransactionFilter] = useState<string>('all');
 
   useEffect(() => {
     if (session?.user) {
@@ -219,6 +220,36 @@ export default function Wallet() {
 
   const formatTransactionDescription = (transaction: Transaction): string => {
     if (transaction.reference) {
+      if (transaction.type === 'contest_win') {
+        // First try the standard format
+        const standardMatch = transaction.reference.match(
+          /Contest Win: (.+) - Rank (\d+)/
+        );
+
+        if (standardMatch) {
+          const [_, contestName, rank] = standardMatch;
+          return `Won ${
+            rank === '1'
+              ? '1st'
+              : rank === '2'
+              ? '2nd'
+              : rank === '3'
+              ? '3rd'
+              : `${rank}th`
+          } place in "${contestName}"`;
+        }
+
+        // If standard format fails, try to extract just the contest name
+        if (transaction.reference.includes('Contest Win:')) {
+          const contestName = transaction.reference
+            .replace('Contest Win:', '')
+            .trim();
+          return `Won contest "${contestName}"`;
+        }
+
+        // For other formats just return the reference
+        return `Contest winnings: ${transaction.reference}`;
+      }
       return transaction.reference;
     }
 
@@ -237,6 +268,12 @@ export default function Wallet() {
         return transaction.type;
     }
   };
+
+  // Filter transactions based on the selected type
+  const filteredTransactions = walletData.transactions.filter(
+    (transaction) =>
+      transactionFilter === 'all' || transaction.type === transactionFilter
+  );
 
   if (loading && !walletData.transactions.length) {
     return (
@@ -513,7 +550,65 @@ export default function Wallet() {
                   Transaction History
                 </h3>
 
-                {walletData.transactions.length === 0 ? (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Filter by Type
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className={`px-3 py-1 text-sm rounded ${
+                        transactionFilter === 'all'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100'
+                      }`}
+                      onClick={() => setTransactionFilter('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-sm rounded ${
+                        transactionFilter === 'deposit'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100'
+                      }`}
+                      onClick={() => setTransactionFilter('deposit')}
+                    >
+                      Deposits
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-sm rounded ${
+                        transactionFilter === 'contest_join'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100'
+                      }`}
+                      onClick={() => setTransactionFilter('contest_join')}
+                    >
+                      Contest Entries
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-sm rounded ${
+                        transactionFilter === 'contest_win'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100'
+                      }`}
+                      onClick={() => setTransactionFilter('contest_win')}
+                    >
+                      Winnings
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-sm rounded ${
+                        transactionFilter === 'withdrawal'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100'
+                      }`}
+                      onClick={() => setTransactionFilter('withdrawal')}
+                    >
+                      Withdrawals
+                    </button>
+                  </div>
+                </div>
+
+                {filteredTransactions.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     No transactions found
                   </div>
@@ -537,7 +632,7 @@ export default function Wallet() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {walletData.transactions.map((transaction) => (
+                        {filteredTransactions.map((transaction) => (
                           <tr key={transaction.id}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(

@@ -55,6 +55,12 @@ export default function EditTeamPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teamName, setTeamName] = useState('');
+  const [showLineupInfo, setShowLineupInfo] = useState(false);
+  const [lineupAvailable, setLineupAvailable] = useState(false);
+  const [officialLineups, setOfficialLineups] = useState<{
+    teamA: Array<{ id: string; name: string; role: string; image?: string }>;
+    teamB: Array<{ id: string; name: string; role: string; image?: string }>;
+  }>({ teamA: [], teamB: [] });
 
   // Fetch team details
   useEffect(() => {
@@ -87,6 +93,28 @@ export default function EditTeamPage() {
 
           if (captainPlayer) setCaptain(captainPlayer.id);
           if (viceCaptainPlayer) setViceCaptain(viceCaptainPlayer.id);
+
+          // Fetch lineup data for the match
+          if (teamData.matchId) {
+            try {
+              const lineupResponse = await fetch(
+                `/api/matches/${teamData.matchId}/lineup`
+              );
+              if (lineupResponse.ok) {
+                const lineupData = await lineupResponse.json();
+                if (lineupData.success && lineupData.tossComplete) {
+                  setLineupAvailable(true);
+                  setOfficialLineups({
+                    teamA: lineupData.teamA || [],
+                    teamB: lineupData.teamB || [],
+                  });
+                }
+              }
+            } catch (lineupError) {
+              console.error('Error fetching lineup data:', lineupError);
+              // Don't set an error - lineup is optional
+            }
+          }
         } else {
           throw new Error('Invalid response format');
         }
@@ -198,6 +226,158 @@ export default function EditTeamPage() {
     const matchStartTime = new Date(team.match.startTime);
     const now = new Date();
     return now >= matchStartTime;
+  };
+
+  // Function to manually fetch lineup data
+  const fetchLineupData = async () => {
+    if (!team?.matchId) return;
+
+    try {
+      console.log(`Manually fetching lineup data for match ${team.matchId}`);
+      // Add refresh=true to force a refresh from the API
+      const lineupResponse = await fetch(
+        `/api/matches/${team.matchId}/lineup?refresh=true`
+      );
+
+      if (lineupResponse.ok) {
+        const lineupData = await lineupResponse.json();
+        console.log('Lineup data response:', lineupData);
+
+        if (lineupData.success && lineupData.tossComplete) {
+          setLineupAvailable(true);
+          setOfficialLineups({
+            teamA: lineupData.teamA || [],
+            teamB: lineupData.teamB || [],
+          });
+          console.log(
+            'Updated lineup with refreshed data from the database/API'
+          );
+        } else {
+          // Handle case where lineup is not available
+          setLineupAvailable(false);
+          // Still show the section, but with a message
+          setShowLineupInfo(true);
+        }
+      } else {
+        console.error(
+          'Failed to fetch lineup data:',
+          lineupResponse.statusText
+        );
+        setLineupAvailable(false);
+      }
+    } catch (error) {
+      console.error('Error fetching lineup data:', error);
+      setLineupAvailable(false);
+    }
+  };
+
+  // Render lineup info section
+  const renderLineupInfoSection = () => {
+    // Always show the section, even if lineupAvailable is false
+    if (!team) return null;
+
+    return (
+      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold">Official Team Lineups</h3>
+          <div className="flex space-x-2">
+            <button
+              onClick={fetchLineupData}
+              className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+            >
+              Refresh Lineup
+            </button>
+            <button
+              onClick={() => setShowLineupInfo(!showLineupInfo)}
+              className="text-sm text-indigo-600 hover:text-indigo-800"
+            >
+              {showLineupInfo ? 'Hide Lineups' : 'Show Lineups'}
+            </button>
+          </div>
+        </div>
+
+        {showLineupInfo && (
+          <div className="bg-gray-50 rounded-lg p-4">
+            {!lineupAvailable ? (
+              <div className="text-center py-8">
+                <div className="text-gray-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto mb-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <h4 className="text-lg font-medium">Lineup Not Available</h4>
+                  <p className="text-sm mt-1">
+                    Official team lineups will be available after the toss
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">
+                    {team.match.teamA} Playing XI
+                  </h4>
+                  {officialLineups.teamA.length > 0 ? (
+                    <ul className="space-y-1 text-sm">
+                      {officialLineups.teamA.map((player, index) => (
+                        <li
+                          key={`team-a-${index}`}
+                          className="flex items-center"
+                        >
+                          <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-800 rounded-full mr-2 text-xs">
+                            {index + 1}
+                          </span>
+                          {player.name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      No players available
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">
+                    {team.match.teamB} Playing XI
+                  </h4>
+                  {officialLineups.teamB.length > 0 ? (
+                    <ul className="space-y-1 text-sm">
+                      {officialLineups.teamB.map((player, index) => (
+                        <li
+                          key={`team-b-${index}`}
+                          className="flex items-center"
+                        >
+                          <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-800 rounded-full mr-2 text-xs">
+                            {index + 1}
+                          </span>
+                          {player.name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      No players available
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Loading state
@@ -374,6 +554,9 @@ export default function EditTeamPage() {
             />
           </div>
         </div>
+
+        {/* Lineup Info Section */}
+        {renderLineupInfoSection()}
 
         {/* Captain & Vice Captain Selection */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
