@@ -12,6 +12,12 @@ import {
   FaSync,
   FaSpinner,
   FaUser,
+  FaChartLine,
+  FaMoneyBillWave,
+  FaExchangeAlt,
+  FaTrophy,
+  FaGift,
+  FaUndo,
 } from 'react-icons/fa';
 
 interface Transaction {
@@ -25,6 +31,291 @@ interface Transaction {
   description: string | null;
   reference: string | null;
   createdAt: string;
+}
+
+interface PlatformEarningsSummary {
+  totalDeposits: number;
+  totalWithdrawals: number;
+  totalContestEntries: number;
+  totalContestWinnings: number;
+  totalBonuses: number;
+  totalRefunds: number;
+  platformCommission: number;
+  netPlatformEarnings: number;
+  platformLiability: number;
+  theoreticalBalance: number;
+}
+
+interface UserMetrics {
+  uniqueTransactingUsers: number;
+  activeWalletUsers: number;
+  averageWalletBalance: number;
+}
+
+// Platform Earnings Summary Component
+function PlatformEarnings() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<PlatformEarningsSummary | null>(null);
+  const [userMetrics, setUserMetrics] = useState<UserMetrics | null>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  const fetchEarnings = async () => {
+    try {
+      setLoading(true);
+
+      // Build query params for date filters
+      const queryParams = new URLSearchParams();
+      if (startDate) queryParams.append('startDate', startDate);
+      if (endDate) queryParams.append('endDate', endDate);
+
+      const response = await fetch(
+        `/api/admin/platform-earnings?${queryParams.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch platform earnings data');
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        setSummary(data.data.summary);
+        setUserMetrics(data.data.userMetrics);
+      } else {
+        throw new Error(data.error || 'Invalid response format');
+      }
+    } catch (err) {
+      console.error('Error fetching platform earnings:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to load earnings data'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEarnings();
+  }, []);
+
+  const handleDateFilterApply = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchEarnings();
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="flex justify-center items-center h-24">
+          <FaSpinner className="animate-spin h-6 w-6 text-indigo-600" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <p className="text-red-700 font-medium">Error: {error}</p>
+        <button
+          onClick={() => fetchEarnings()}
+          className="mt-2 text-red-600 underline text-sm"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+      <div className="p-4 bg-indigo-50 border-b flex justify-between items-center">
+        <h2 className="font-bold text-lg flex items-center">
+          <FaChartLine className="mr-2 text-indigo-600" />
+          Platform Financial Summary
+        </h2>
+
+        <form
+          onSubmit={handleDateFilterApply}
+          className="flex items-center space-x-2"
+        >
+          <div className="flex items-center">
+            <label className="text-xs text-gray-600 mr-1">From:</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="text-sm p-1 border rounded"
+            />
+          </div>
+          <div className="flex items-center">
+            <label className="text-xs text-gray-600 mr-1">To:</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="text-sm p-1 border rounded"
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded text-sm"
+          >
+            Apply
+          </button>
+          {(startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setTimeout(fetchEarnings, 0);
+              }}
+              className="text-gray-500 hover:text-gray-700"
+              title="Clear date filter"
+            >
+              <FaUndo size={14} />
+            </button>
+          )}
+        </form>
+      </div>
+
+      {summary && (
+        <div className="p-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+            {/* Income */}
+            <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+              <div className="flex items-center text-green-700 mb-1">
+                <FaMoneyBillWave className="mr-1" />
+                <span className="text-sm font-medium">Deposits</span>
+              </div>
+              <p className="text-xl font-bold text-green-800">
+                ₹{summary.totalDeposits.toLocaleString()}
+              </p>
+            </div>
+
+            {/* Withdrawals */}
+            <div className="bg-red-50 p-3 rounded-lg border border-red-100">
+              <div className="flex items-center text-red-700 mb-1">
+                <FaExchangeAlt className="mr-1" />
+                <span className="text-sm font-medium">Withdrawals</span>
+              </div>
+              <p className="text-xl font-bold text-red-800">
+                ₹{summary.totalWithdrawals.toLocaleString()}
+              </p>
+            </div>
+
+            {/* Contest Entries */}
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <div className="flex items-center text-blue-700 mb-1">
+                <FaUser className="mr-1" />
+                <span className="text-sm font-medium">Contest Entries</span>
+              </div>
+              <p className="text-xl font-bold text-blue-800">
+                ₹{summary.totalContestEntries.toLocaleString()}
+              </p>
+            </div>
+
+            {/* Contest Winnings */}
+            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+              <div className="flex items-center text-yellow-700 mb-1">
+                <FaTrophy className="mr-1" />
+                <span className="text-sm font-medium">Contest Winnings</span>
+              </div>
+              <p className="text-xl font-bold text-yellow-800">
+                ₹{summary.totalContestWinnings.toLocaleString()}
+              </p>
+            </div>
+
+            {/* Platform Commission */}
+            <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+              <div className="flex items-center text-purple-700 mb-1">
+                <FaGift className="mr-1" />
+                <span className="text-sm font-medium">Platform Commission</span>
+              </div>
+              <p className="text-xl font-bold text-purple-800">
+                ₹{summary.platformCommission.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Net Platform Earnings */}
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+              <h3 className="text-indigo-800 font-semibold mb-2">
+                Net Platform Earnings
+              </h3>
+              <p className="text-2xl font-bold text-indigo-700">
+                ₹{summary.netPlatformEarnings.toLocaleString()}
+              </p>
+              <p className="text-xs text-indigo-600 mt-1">
+                Platform commission (entry fees minus winnings)
+              </p>
+            </div>
+
+            {/* Users' Wallet Balance */}
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+              <h3 className="text-indigo-800 font-semibold mb-2">
+                Users' Wallet Balance
+              </h3>
+              <p className="text-2xl font-bold text-indigo-700">
+                ₹{summary.platformLiability.toLocaleString()}
+              </p>
+              <p className="text-xs text-indigo-600 mt-1">
+                Current liability (money owed to users)
+              </p>
+            </div>
+
+            {/* Expected Platform Balance */}
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+              <h3 className="text-indigo-800 font-semibold mb-2">
+                Expected Platform Balance
+              </h3>
+              <p
+                className={`text-2xl font-bold ${
+                  summary.theoreticalBalance >= 0
+                    ? 'text-green-700'
+                    : 'text-red-700'
+                }`}
+              >
+                ₹{summary.theoreticalBalance.toLocaleString()}
+              </p>
+              <p className="text-xs text-indigo-600 mt-1">
+                Deposits - Withdrawals - User Balances
+              </p>
+            </div>
+          </div>
+
+          {userMetrics && (
+            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">
+                  Unique Transacting Users
+                </p>
+                <p className="font-semibold">
+                  {userMetrics.uniqueTransactingUsers.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Active Wallet Users</p>
+                <p className="font-semibold">
+                  {userMetrics.activeWalletUsers.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Avg. Wallet Balance</p>
+                <p className="font-semibold">
+                  ₹{userMetrics.averageWalletBalance.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TransactionsPage() {
@@ -208,6 +499,9 @@ export default function TransactionsPage() {
           </button>
         </div>
       </div>
+
+      {/* Add Platform Earnings Summary Component */}
+      <PlatformEarnings />
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
         {/* Filters */}

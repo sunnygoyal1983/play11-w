@@ -170,48 +170,62 @@ export default function Teams() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/teams/${team.id}`}
-                      className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm"
-                    >
-                      View Team
-                    </Link>
-                    {team.status === 'upcoming' && (
-                      <>
-                        <Link
-                          href={`/teams/${team.id}/edit`}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm"
-                        >
-                          Edit Team
-                        </Link>
-                        <Link
-                          href={`/contests?matchId=${team.matchId}`}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
-                        >
-                          Join Contest
-                        </Link>
-                      </>
-                    )}
-                    {team.status === 'live' && (
+                  <div className="flex flex-wrap gap-2 justify-between items-center">
+                    <div className="flex flex-wrap gap-2">
                       <Link
-                        href={`/matches/${team.matchId}/live`}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                        href={`/teams/${team.id}`}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm"
                       >
-                        Live Score
+                        View Team
                       </Link>
-                    )}
-                    {team.status === 'completed' && (
+                      {team.status === 'upcoming' && (
+                        <>
+                          <Link
+                            href={`/teams/${team.id}/edit`}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm"
+                          >
+                            Edit Team
+                          </Link>
+                          <Link
+                            href={`/contests?matchId=${team.matchId}`}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
+                          >
+                            Join Contest
+                          </Link>
+                        </>
+                      )}
+                      {team.status === 'live' && (
+                        <Link
+                          href={`/matches/${team.matchId}/live`}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Live Score
+                        </Link>
+                      )}
+                    </div>
+
+                    {/* Show points and rank for all teams that have joined contests */}
+                    {team.contestsJoined > 0 && (
                       <div className="flex items-center space-x-4">
                         <div>
                           <span className="text-gray-600 text-sm">Points:</span>
-                          <span className="font-medium ml-1">
-                            {team.points}
+                          <span
+                            className={`font-medium ml-1 ${
+                              team.status === 'live' ? 'text-green-600' : ''
+                            }`}
+                          >
+                            {team.points || 0}
                           </span>
                         </div>
                         <div>
                           <span className="text-gray-600 text-sm">Rank:</span>
-                          <span className="font-medium ml-1">{team.rank}</span>
+                          <span
+                            className={`font-medium ml-1 ${
+                              team.status === 'live' ? 'text-green-600' : ''
+                            }`}
+                          >
+                            {team.rank || '-'}
+                          </span>
                         </div>
                       </div>
                     )}

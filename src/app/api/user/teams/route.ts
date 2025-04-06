@@ -41,6 +41,15 @@ export async function GET(request: NextRequest) {
             contestId: true,
             rank: true,
             winAmount: true,
+            points: true,
+            contest: {
+              select: {
+                id: true,
+                name: true,
+                entryFee: true,
+                entries: true,
+              },
+            },
           },
         },
         players: {
@@ -63,11 +72,13 @@ export async function GET(request: NextRequest) {
     // Transform the data to match the expected format
     const transformedTeams = teams.map((team) => {
       // Find captain and vice-captain details
-      const captain = team.players.find((p) => p.isCaptain)?.player;
-      const viceCaptain = team.players.find((p) => p.isViceCaptain)?.player;
+      const captain = team.players.find((p) => p.isCaptain === true)?.player;
+      const viceCaptain = team.players.find(
+        (p) => p.isViceCaptain === true
+      )?.player;
 
       // Calculate match status
-      let status = 'upcoming';
+      let status: 'upcoming' | 'live' | 'completed' = 'upcoming';
       const matchDate = new Date(team.match.startTime);
       const now = new Date();
 
@@ -84,7 +95,40 @@ export async function GET(request: NextRequest) {
       let totalPoints = 0;
       let bestRank = '';
 
-      // For completed matches, add point calculation logic here
+      // Calculate points by summing up the points from all contest entries
+      if (team.contestEntries.length > 0) {
+        // Sum up points from all contest entries
+        totalPoints = team.contestEntries.reduce((sum, entry) => {
+          return sum + (entry.points || 0);
+        }, 0);
+
+        // If there are multiple contests, we average the points
+        if (team.contestEntries.length > 1) {
+          totalPoints = Math.round(totalPoints / team.contestEntries.length);
+        }
+
+        // Find the best rank (lowest number is best)
+        const validRanks = team.contestEntries
+          .filter((entry) => entry.rank !== null)
+          .map((entry) => entry.rank as number);
+
+        if (validRanks.length > 0) {
+          // Get the best rank (lowest number)
+          const bestRankNumber = Math.min(...validRanks.map((r) => Number(r)));
+          bestRank = bestRankNumber.toString();
+
+          // Add suffix to rank
+          if (bestRankNumber === 1) {
+            bestRank = '1st';
+          } else if (bestRankNumber === 2) {
+            bestRank = '2nd';
+          } else if (bestRankNumber === 3) {
+            bestRank = '3rd';
+          } else {
+            bestRank = `${bestRankNumber}th`;
+          }
+        }
+      }
 
       return {
         id: team.id,

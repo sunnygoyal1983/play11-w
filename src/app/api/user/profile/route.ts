@@ -27,6 +27,10 @@ export async function GET(request: NextRequest) {
         address: true,
         dob: true,
         panNumber: true,
+        bankName: true,
+        accountNumber: true,
+        ifscCode: true,
+        accountHolderName: true,
         kycVerified: true,
         walletBalance: true,
         createdAt: true,
@@ -64,7 +68,17 @@ export async function PUT(request: NextRequest) {
     console.log('Update profile request data:', data);
 
     // Validate input data
-    const { name, phone, address, dob, panNumber } = data;
+    const {
+      name,
+      phone,
+      address,
+      dob,
+      panNumber,
+      bankName,
+      accountNumber,
+      ifscCode,
+      accountHolderName,
+    } = data;
 
     // Fields that are allowed to be updated
     const updateData: {
@@ -73,6 +87,10 @@ export async function PUT(request: NextRequest) {
       address?: string | null;
       dob?: Date | null;
       panNumber?: string | null;
+      bankName?: string | null;
+      accountNumber?: string | null;
+      ifscCode?: string | null;
+      accountHolderName?: string | null;
     } = {};
 
     if (name) updateData.name = name;
@@ -81,6 +99,11 @@ export async function PUT(request: NextRequest) {
     updateData.phone = phone === '' ? null : phone;
     updateData.address = address === '' ? null : address;
     updateData.panNumber = panNumber === '' ? null : panNumber;
+    updateData.bankName = bankName === '' ? null : bankName;
+    updateData.accountNumber = accountNumber === '' ? null : accountNumber;
+    updateData.ifscCode = ifscCode === '' ? null : ifscCode;
+    updateData.accountHolderName =
+      accountHolderName === '' ? null : accountHolderName;
 
     // Handle date field
     if (dob !== undefined) {
@@ -102,6 +125,10 @@ export async function PUT(request: NextRequest) {
         address: true,
         dob: true,
         panNumber: true,
+        bankName: true,
+        accountNumber: true,
+        ifscCode: true,
+        accountHolderName: true,
         kycVerified: true,
         walletBalance: true,
         createdAt: true,

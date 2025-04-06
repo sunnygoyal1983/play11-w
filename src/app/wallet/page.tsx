@@ -6,6 +6,8 @@ import MainLayout from '@/components/MainLayout';
 import { FaWallet, FaMoneyBillWave, FaTrophy, FaHistory } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import Script from 'next/script';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 
 // Define types for the wallet data
 interface Transaction {
@@ -52,6 +54,8 @@ export default function Wallet() {
   const [withdrawalMethod, setWithdrawalMethod] = useState('');
   const [processing, setProcessing] = useState(false);
   const [transactionFilter, setTransactionFilter] = useState<string>('all');
+  const [hasBankDetails, setHasBankDetails] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (session?.user) {
@@ -75,6 +79,17 @@ export default function Wallet() {
 
       const data = await response.json();
       setWalletData(data);
+
+      // Check if user has bank details set up
+      const profileResponse = await fetch('/api/user/profile');
+      const profileData = await profileResponse.json();
+      setHasBankDetails(
+        !!(
+          profileData.bankName &&
+          profileData.accountNumber &&
+          profileData.ifscCode
+        )
+      );
     } catch (error) {
       console.error('Error fetching wallet data:', error);
       toast.error('Failed to load wallet data');
@@ -196,26 +211,41 @@ export default function Wallet() {
       return;
     }
 
-    if (withdrawAmount <= 0) {
-      toast.error('Please enter a valid amount');
+    if (withdrawalMethod === 'bank' && !hasBankDetails) {
+      toast.error(
+        'Please add your bank account details in your profile before withdrawing'
+      );
+      return;
+    }
+
+    if (withdrawAmount < 100) {
+      toast.error('Minimum withdrawal amount is ₹100');
       return;
     }
 
     if (withdrawAmount > walletData.winnings) {
-      toast.error('You can only withdraw from your winnings');
+      toast.error('Insufficient winning balance');
       return;
     }
 
-    // Implementation would connect to a payment gateway
+    setProcessing(true);
+
+    // Display a loading toast
     toast.info(
       `Processing withdrawal of ₹${withdrawAmount} via ${withdrawalMethod}...`
     );
 
     // Simulating successful withdrawal for demonstration
     toast.success(`Withdrawal of ₹${withdrawAmount} initiated!`);
+    // In a real implementation, you would call your API here
 
-    // Refresh wallet data
-    fetchWalletData();
+    // Reset form after success
+    setWithdrawAmount(0);
+    setWithdrawalMethod('');
+    setTimeout(() => {
+      setProcessing(false);
+      fetchWalletData(); // Refresh wallet data
+    }, 1500);
   };
 
   const formatTransactionDescription = (transaction: Transaction): string => {
@@ -541,6 +571,22 @@ export default function Wallet() {
                 >
                   {processing ? 'Processing...' : 'Withdraw'}
                 </button>
+
+                {withdrawalMethod === 'bank' && !hasBankDetails && (
+                  <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded">
+                    <p>
+                      Your bank details are not set up. Please update your bank
+                      information in the profile section before making a
+                      withdrawal.
+                    </p>
+                    <button
+                      className="mt-1 text-indigo-600 hover:text-indigo-800 font-medium"
+                      onClick={() => router.push('/profile')}
+                    >
+                      Go to profile settings
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

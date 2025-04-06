@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
 import { FaEnvelope, FaLock, FaExclamationCircle } from 'react-icons/fa';
 import Image from 'next/image';
@@ -18,12 +18,20 @@ export default function SignIn() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { data: session, status } = useSession();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<SignInFormData>();
+
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      router.push('/');
+    }
+  }, [status, session, router]);
 
   // Check for error params
   useEffect(() => {

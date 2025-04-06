@@ -25,6 +25,10 @@ model User {
   address        String?
   dob            DateTime?
   panNumber      String?
+  bankName       String?
+  accountNumber  String?
+  ifscCode       String?
+  accountHolderName String?
   kycVerified    Boolean          @default(false)
   role           UserRole         @default(USER)
   createdAt      DateTime         @default(now())

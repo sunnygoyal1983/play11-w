@@ -35,12 +35,6 @@ const Navbar = () => {
               Matches
             </Link>
             <Link
-              href="/contests"
-              className={`hover:text-indigo-200 ${isActive('/contests')}`}
-            >
-              Contests
-            </Link>
-            <Link
               href="/my-contests"
               className={`hover:text-indigo-200 ${isActive('/my-contests')}`}
             >
@@ -123,10 +117,6 @@ const Navbar = () => {
           <Link href="/matches" className="flex flex-col items-center text-xs">
             <MdSportsCricket size={20} />
             <span>Matches</span>
-          </Link>
-          <Link href="/contests" className="flex flex-col items-center text-xs">
-            <FaTrophy size={20} />
-            <span>Contests</span>
           </Link>
           <Link
             href="/my-contests"

@@ -27,6 +27,10 @@ interface UserProfile {
   panNumber?: string;
   walletBalance: number;
   image?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  accountHolderName?: string;
 }
 
 interface ProfileFormData {
@@ -35,6 +39,10 @@ interface ProfileFormData {
   address?: string;
   dob?: string;
   panNumber?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  accountHolderName?: string;
 }
 
 interface Transaction {
@@ -226,6 +234,10 @@ export default function ProfilePage() {
         address: userProfile.address || '',
         dob: formattedDob,
         panNumber: userProfile.panNumber || '',
+        bankName: userProfile.bankName || '',
+        accountNumber: userProfile.accountNumber || '',
+        ifscCode: userProfile.ifscCode || '',
+        accountHolderName: userProfile.accountHolderName || '',
       });
     }
     setIsEditMode(!isEditMode);
@@ -447,7 +459,7 @@ export default function ProfilePage() {
                 <h2 className="text-xl font-semibold">Personal Information</h2>
                 <button
                   onClick={handleEditToggle}
-                  className="flex items-center bg-indigo-100 text-indigo-700 px-4 py-2 rounded-md hover:bg-indigo-200"
+                  className="flex items-center bg-indigo-100 text-indigo-700 px-4 py-2 rounded-md hover:bg-indigo-200 transition-colors duration-200 font-medium"
                 >
                   <FaEdit className="mr-2" />
                   {isEditMode ? 'Cancel Edit' : 'Edit Profile'}
@@ -456,93 +468,171 @@ export default function ProfilePage() {
 
               {isEditMode ? (
                 <form onSubmit={handleSubmit(onSubmit)}>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        {...register('name', { required: 'Name is required' })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                      {errors.name && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.name.message}
-                        </p>
-                      )}
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        Personal Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Full Name
+                          </label>
+                          <input
+                            type="text"
+                            {...register('name', { required: 'Name is required' })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                          {errors.name && (
+                            <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
+                              {errors.name.message}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Phone Number
+                          </label>
+                          <input
+                            type="text"
+                            {...register('phone', {
+                              pattern: {
+                                value: /^[0-9]{10}$/,
+                                message:
+                                  'Please enter a valid 10-digit phone number',
+                              },
+                            })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                          {errors.phone && (
+                            <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
+                              {errors.phone.message}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Address
+                          </label>
+                          <textarea
+                            {...register('address')}
+                            rows={3}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Date of Birth
+                          </label>
+                          <input
+                            type="date"
+                            {...register('dob')}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            PAN Number
+                          </label>
+                          <input
+                            type="text"
+                            {...register('panNumber', {
+                              pattern: {
+                                value: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
+                                message: 'Please enter a valid PAN number',
+                              },
+                            })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                          {errors.panNumber && (
+                            <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
+                              {errors.panNumber.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Phone Number
-                      </label>
-                      <input
-                        type="text"
-                        {...register('phone', {
-                          pattern: {
-                            value: /^[0-9]{10}$/,
-                            message:
-                              'Please enter a valid 10-digit phone number',
-                          },
-                        })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                      {errors.phone && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.phone.message}
-                        </p>
-                      )}
-                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        Bank Account Details
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Bank Name
+                          </label>
+                          <input
+                            type="text"
+                            {...register('bankName')}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Address
-                      </label>
-                      <textarea
-                        {...register('address')}
-                        rows={3}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Account Holder Name
+                          </label>
+                          <input
+                            type="text"
+                            {...register('accountHolderName')}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Date of Birth
-                      </label>
-                      <input
-                        type="date"
-                        {...register('dob')}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Account Number
+                          </label>
+                          <input
+                            type="text"
+                            {...register('accountNumber', {
+                              pattern: {
+                                value: /^\d{9,18}$/,
+                                message: 'Please enter a valid account number (9-18 digits)',
+                              },
+                            })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                          {errors.accountNumber && (
+                            <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
+                              {errors.accountNumber.message}
+                            </p>
+                          )}
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        PAN Number
-                      </label>
-                      <input
-                        type="text"
-                        {...register('panNumber', {
-                          pattern: {
-                            value: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
-                            message: 'Please enter a valid PAN number',
-                          },
-                        })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                      {errors.panNumber && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.panNumber.message}
-                        </p>
-                      )}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            IFSC Code
+                          </label>
+                          <input
+                            type="text"
+                            {...register('ifscCode', {
+                              pattern: {
+                                value: /^[A-Z]{4}0[A-Z0-9]{6}$/,
+                                message: 'Please enter a valid IFSC code',
+                              },
+                            })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                          />
+                          {errors.ifscCode && (
+                            <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
+                              {errors.ifscCode.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex justify-end">
                       <button
                         type="submit"
                         disabled={isUpdating}
-                        className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                        className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 font-medium"
                       >
                         {isUpdating ? 'Saving...' : 'Save Changes'}
                       </button>
@@ -616,6 +706,78 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                  <div className="mt-8">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Bank Account Information
+                    </h3>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                      {userProfile.bankName &&
+                      userProfile.accountNumber &&
+                      userProfile.ifscCode ? (
+                        <div className="flex flex-col md:flex-row md:space-x-12">
+                          <div className="md:w-1/2 space-y-4">
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">
+                                Bank Name
+                              </h3>
+                              <p className="text-base">
+                                {userProfile.bankName}
+                              </p>
+                            </div>
+
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">
+                                Account Holder
+                              </h3>
+                              <p className="text-base">
+                                {userProfile.accountHolderName ||
+                                  userProfile.name}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="md:w-1/2 space-y-4 mt-4 md:mt-0">
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">
+                                Account Number
+                              </h3>
+                              <p className="text-base">
+                                {userProfile.accountNumber.replace(
+                                  /^(\d{4})(\d+)(\d{4})$/,
+                                  '$1 **** $3'
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">
+                                IFSC Code
+                              </h3>
+                              <p className="text-base">
+                                {userProfile.ifscCode}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-gray-600">
+                              Add your bank details to enable withdrawals to
+                              your bank account.
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleEditToggle}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors duration-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 font-medium"
+                          >
+                            Add Bank Details
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-6">
                     <div className="flex">
                       <div className="flex-shrink-0">
@@ -624,7 +786,8 @@ export default function ProfilePage() {
                       <div className="ml-3">
                         <p className="text-sm text-yellow-700">
                           Complete your KYC to enable withdrawals. Make sure
-                          your name and PAN details match.
+                          your name, PAN details, and bank account information
+                          match exactly to avoid withdrawal issues.
                         </p>
                       </div>
                     </div>
