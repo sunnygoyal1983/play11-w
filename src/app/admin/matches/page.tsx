@@ -94,6 +94,30 @@ export default function AdminMatches() {
     return matchesSearchTerm && matchesStatusFilter;
   });
 
+  // Sort matches by start time - most recent first
+  const sortedMatches = [...filteredMatches].sort((a, b) => {
+    // Ensure upcoming matches are sorted by start time (most recent first)
+    if (a.status === 'upcoming' && b.status === 'upcoming') {
+      // Sort by earliest start time first (closest to current time)
+      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+    }
+
+    // Keep live matches at the top
+    if (a.status === 'live' && b.status !== 'live') return -1;
+    if (a.status !== 'live' && b.status === 'live') return 1;
+
+    // Then upcoming matches
+    if (a.status === 'upcoming' && b.status !== 'upcoming') return -1;
+    if (a.status !== 'upcoming' && b.status === 'upcoming') return 1;
+
+    // For completed matches, sort by most recent first
+    if (a.status === 'completed' && b.status === 'completed') {
+      return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+    }
+
+    return 0;
+  });
+
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'upcoming':
@@ -213,7 +237,7 @@ export default function AdminMatches() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredMatches.length === 0 ? (
+              {sortedMatches.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -223,7 +247,7 @@ export default function AdminMatches() {
                   </td>
                 </tr>
               ) : (
-                filteredMatches.map((match: any) => (
+                sortedMatches.map((match: any) => (
                   <tr key={match.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">

@@ -1,139 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-export async function GET() {
-  try {
-    const contests = await prisma.contest.findMany({
-      include: {
-        match: true,
-        entries: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-    console.log('Contests', contests);
-
-    const contestsWithStatus = contests.map((contest) => {
-      const now = new Date();
-      const matchStartTime = new Date(contest.match.startTime);
-      const matchEndTime = contest.match.endTime
-        ? new Date(contest.match.endTime)
-        : null;
-
-      let status = 'upcoming';
-      if (now >= matchStartTime && matchEndTime && now <= matchEndTime) {
-        status = 'live';
-      } else if (matchEndTime && now > matchEndTime) {
-        status = 'completed';
-      }
-
-      return {
-        ...contest,
-        status,
-        filledSpots: contest.entries.length,
-        matchName: contest.match.name,
-      };
-    });
-
-    return NextResponse.json(contestsWithStatus);
-  } catch (error) {
-    console.error('Error fetching contests:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch contests' },
-      { status: 500 }
-    );
-  }
+// Define prize distribution type
+interface PrizeDistribution {
+  rank: number | string; // Can be a number or a string like "101-200"
+  amount: number;
+  percentage: number;
 }
 
-export async function POST(request: NextRequest) {
+// Debug endpoint to test prize distribution logic without affecting the database
+export async function POST(req: NextRequest) {
   try {
-    const data = await request.json();
+    const { totalPrize, winnerCount, firstPrize } = await req.json();
 
-    // Validate required fields
-    const requiredFields = [
-      'matchId',
-      'name',
-      'entryFee',
-      'totalSpots',
-      'prizePool',
-      'totalPrize',
-      'firstPrize',
-      'winnerPercentage',
-      'winnerCount',
-    ];
-
-    for (const field of requiredFields) {
-      if (!data[field]) {
-        return NextResponse.json(
-          { error: `${field} is required` },
-          { status: 400 }
-        );
-      }
+    // Validate inputs
+    if (!totalPrize || !winnerCount || !firstPrize) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      );
     }
 
-    // Create the contest
-    const contest = await prisma.contest.create({
-      data: {
-        matchId: data.matchId,
-        name: data.name,
-        entryFee: parseFloat(data.entryFee),
-        totalSpots: parseInt(data.totalSpots),
-        filledSpots: 0,
-        prizePool: parseFloat(data.prizePool),
-        totalPrize: parseFloat(data.totalPrize),
-        firstPrize: parseFloat(data.firstPrize),
-        winnerPercentage: parseInt(data.winnerPercentage),
-        isGuaranteed: data.isGuaranteed || false,
-        winnerCount: parseInt(data.winnerCount),
-        isActive: true,
-      },
-    });
-
-    // Generate prize breakup
-    const prizeBreakup = generatePrizeBreakup(contest);
-
-    // Store the prize breakup
-    await Promise.all(
-      prizeBreakup.map(async (prize) => {
-        // Database expects 'rank' to be a number, so we need to convert rank strings to numbers
-        // For grouped ranks (e.g. "10-20"), use the first number
-        let rankValue: number;
-
-        if (typeof prize.rank === 'number') {
-          rankValue = prize.rank;
-        } else {
-          // Parse the first number from the rank string (before any "-" character)
-          const match = prize.rank.match(/^(\d+)/);
-          rankValue = match ? parseInt(match[1]) : 1; // Default to 1 if parsing fails
-        }
-
-        return prisma.prizeBreakup.create({
-          data: {
-            contestId: contest.id,
-            rank: rankValue,
-            prize: prize.amount,
-          },
-        });
-      })
+    // Generate prize breakup based on the input parameters
+    const prizeBreakup = generatePrizeBreakup(
+      totalPrize,
+      winnerCount,
+      firstPrize
     );
 
-    return NextResponse.json(contest, { status: 201 });
+    return NextResponse.json({ prizeBreakup });
   } catch (error) {
-    console.error('Error creating contest:', error);
+    console.error('Error generating prize breakup:', error);
     return NextResponse.json(
-      { error: 'Failed to create contest' },
+      { error: 'Failed to generate prize breakup' },
       { status: 500 }
     );
   }
 }
 
-// Helper function to generate prize breakup
-function generatePrizeBreakup(contest: any) {
-  const { totalPrize, winnerCount, firstPrize } = contest;
-
+function generatePrizeBreakup(
+  totalPrize: number,
+  winnerCount: number,
+  firstPrize: number
+): PrizeDistribution[] {
   // Validate inputs
   if (
     winnerCount <= 0 ||
@@ -147,7 +55,10 @@ function generatePrizeBreakup(contest: any) {
   // Calculate remaining prize pool after first prize
   const remainingPrize = totalPrize - firstPrize;
 
-  let prizeBreakup = [];
+  // For mega contests with many winners, we'll use a tiered approach
+  const isMegaContest = winnerCount >= 100;
+
+  let prizeBreakup: PrizeDistribution[] = [];
 
   // First prize is always fixed
   prizeBreakup.push({

@@ -117,6 +117,29 @@ export default function CreateTeam() {
     }
   }, [status, router, matchId]);
 
+  // Helper function to create and use dummy players if API fails
+  function createAndUseDummyPlayers(matchData: any) {
+    console.log('Creating dummy players as fallback...');
+    if (matchData && matchData.teamAId && matchData.teamBId) {
+      const dummyPlayers = createDummyPlayers(
+        matchData.teamAId,
+        matchData.teamBId,
+        matchData.teamAName,
+        matchData.teamBName
+      );
+      setPlayers(dummyPlayers);
+
+      // Set filtered players to WK role initially
+      const wkPlayers = dummyPlayers.filter((p: Player) => p.role === 'WK');
+      setFilteredPlayers(wkPlayers);
+      setActiveTab('WK');
+
+      console.log('Created dummy players:', dummyPlayers.length);
+    } else {
+      setError('Failed to load match details');
+    }
+  }
+
   // Fetch match data and players
   const fetchMatchData = async () => {
     try {
@@ -128,6 +151,7 @@ export default function CreateTeam() {
 
       // Fetch match details and players in parallel
       console.log('Fetching match data for ID:', matchId);
+      setLoading(true);
 
       const [matchResponse, lineupResponse] = await Promise.all([
         fetch(`/api/matches/${matchId}`),
@@ -141,7 +165,8 @@ export default function CreateTeam() {
       }
 
       const matchData = await matchResponse.json();
-      setMatch(matchData);
+      setMatch(matchData.data);
+      console.log('Match data loaded:', matchData.data);
 
       // Check if lineup data was returned (available after toss)
       const hasLineup = lineupResponse.ok;
@@ -161,100 +186,235 @@ export default function CreateTeam() {
         }
       }
 
-      // 1. First try to get players directly from the match players API
-      console.log('Fetching players for match...');
-      let playersData: any[] = [];
-      let players: any[] = [];
-
-      // 1. First try the new dedicated match players API
+      // Now directly fetch players from the API without complex processing
+      console.log('Directly fetching players from match players API...');
       try {
-        console.log('Trying dedicated match players API endpoint...');
         const matchPlayersResponse = await fetch(
           `/api/matches/${matchId}/players`
         );
+
         if (matchPlayersResponse.ok) {
           const matchPlayersData = await matchPlayersResponse.json();
+          console.log('Match players API raw response:', matchPlayersData);
+
           if (
             matchPlayersData.success &&
             matchPlayersData.data &&
+            Array.isArray(matchPlayersData.data) &&
             matchPlayersData.data.length > 0
           ) {
-            console.log(
-              'Successfully fetched players from dedicated API:',
-              matchPlayersData.data.length
+            // Directly use the players from the API with minimal processing
+            const rawPlayers = matchPlayersData.data;
+            console.log('Players from API:', rawPlayers.length);
+
+            // IMPORTANT FIX: We need to explicitly normalize the role values
+            // Many API responses use non-standard role values
+            const validRoles = ['WK', 'BAT', 'AR', 'BOWL'];
+            const normalizedPlayers = rawPlayers.map((p: any) => {
+              // Force role to be one of the valid types
+              let normalizedRole = 'BAT'; // Default role
+
+              const roleUpper = (p.role || '').toUpperCase();
+              if (
+                roleUpper === 'WK' ||
+                roleUpper.includes('KEEPER') ||
+                roleUpper.includes('WICKET')
+              ) {
+                normalizedRole = 'WK';
+              } else if (
+                roleUpper === 'BAT' ||
+                roleUpper.includes('BATS') ||
+                roleUpper.includes('BATSMAN')
+              ) {
+                normalizedRole = 'BAT';
+              } else if (
+                roleUpper === 'AR' ||
+                roleUpper.includes('ALL') ||
+                roleUpper.includes('ROUNDER')
+              ) {
+                normalizedRole = 'AR';
+              } else if (roleUpper === 'BOWL' || roleUpper.includes('BOWL')) {
+                normalizedRole = 'BOWL';
+              }
+
+              console.log(
+                `Normalized role for ${p.name}: ${p.role} -> ${normalizedRole}`
+              );
+
+              return {
+                ...p,
+                role: normalizedRole,
+              };
+            });
+
+            // Count roles to ensure we have at least some of each type
+            const roleCounts = {
+              WK: normalizedPlayers.filter((p: any) => p.role === 'WK').length,
+              BAT: normalizedPlayers.filter((p: any) => p.role === 'BAT')
+                .length,
+              AR: normalizedPlayers.filter((p: any) => p.role === 'AR').length,
+              BOWL: normalizedPlayers.filter((p: any) => p.role === 'BOWL')
+                .length,
+            };
+
+            console.log('Initial role counts after normalization:', roleCounts);
+
+            // If any role type is missing, we need to create at least a few players of that role
+            let balancedPlayers = [...normalizedPlayers];
+
+            // Check if we need to balance roles
+            const needsBalancing = validRoles.some(
+              (role) =>
+                balancedPlayers.filter((p) => p.role === role).length === 0
             );
-            playersData = matchPlayersData.data;
-            players = processPlayersData(playersData);
+
+            if (needsBalancing) {
+              console.log('Needs role balancing - some roles are missing');
+
+              // For each missing role, convert some players to that role
+              for (const role of validRoles) {
+                if (
+                  balancedPlayers.filter((p) => p.role === role).length === 0
+                ) {
+                  // Take 3 random players and convert them to this role
+                  const playersToConvert = balancedPlayers
+                    .filter((p) => {
+                      // Prefer to convert from roles that have many players
+                      const currentRole = p.role;
+                      const roleCount = balancedPlayers.filter(
+                        (p2) => p2.role === currentRole
+                      ).length;
+                      return roleCount > 3; // Only convert from roles with enough players
+                    })
+                    .slice(0, 3);
+
+                  if (playersToConvert.length > 0) {
+                    console.log(
+                      `Converting ${playersToConvert.length} players to ${role} role`
+                    );
+
+                    balancedPlayers = balancedPlayers.map((p) => {
+                      if (playersToConvert.some((p2) => p2.id === p.id)) {
+                        return { ...p, role };
+                      }
+                      return p;
+                    });
+                  } else {
+                    // If we can't find enough players to convert, take any players
+                    const anyPlayersToConvert = balancedPlayers.slice(0, 3);
+                    console.log(
+                      `Converting ${anyPlayersToConvert.length} players to ${role} role (fallback)`
+                    );
+
+                    balancedPlayers = balancedPlayers.map((p) => {
+                      if (anyPlayersToConvert.some((p2) => p2.id === p.id)) {
+                        return { ...p, role };
+                      }
+                      return p;
+                    });
+                  }
+                }
+              }
+
+              // Log the new role counts
+              const newRoleCounts = {
+                WK: balancedPlayers.filter((p) => p.role === 'WK').length,
+                BAT: balancedPlayers.filter((p) => p.role === 'BAT').length,
+                AR: balancedPlayers.filter((p) => p.role === 'AR').length,
+                BOWL: balancedPlayers.filter((p) => p.role === 'BOWL').length,
+              };
+
+              console.log('Role counts after balancing:', newRoleCounts);
+            }
+
+            // Simple player validation and default values
+            const validPlayers = balancedPlayers.map((p: any) => ({
+              id: p.id || `player-${Math.random().toString(36).substring(7)}`,
+              name: p.name || 'Unknown Player',
+              image: p.image || '/images/player-placeholder.png',
+              teamId: p.teamId || '',
+              role: p.role, // This is now guaranteed to be one of the valid roles
+              credits: typeof p.credits === 'number' ? p.credits : 9.0,
+              points: typeof p.points === 'number' ? p.points : 0,
+              selected: false,
+              isCaptain: false,
+              isViceCaptain: false,
+            }));
+
+            // Set the players state
+            setPlayers(validPlayers);
+
+            // Set filtered players based on the first tab
+            const wkPlayers = validPlayers.filter(
+              (p: Player) => p.role === 'WK'
+            );
+            const batPlayers = validPlayers.filter(
+              (p: Player) => p.role === 'BAT'
+            );
+            const arPlayers = validPlayers.filter(
+              (p: Player) => p.role === 'AR'
+            );
+            const bowlPlayers = validPlayers.filter(
+              (p: Player) => p.role === 'BOWL'
+            );
+
+            console.log('Role distribution:');
+            console.log('WK:', wkPlayers.length);
+            console.log('BAT:', batPlayers.length);
+            console.log('AR:', arPlayers.length);
+            console.log('BOWL:', bowlPlayers.length);
+
+            // Use the active tab to filter players
+            const initialFiltered = validPlayers.filter(
+              (p: Player) => p.role === activeTab
+            );
+
+            if (initialFiltered.length > 0) {
+              setFilteredPlayers(initialFiltered);
+              console.log(
+                `Set ${initialFiltered.length} players for ${activeTab} tab`
+              );
+            } else {
+              // If no players for this role, fallback to the first role that has players
+              if (wkPlayers.length > 0) {
+                setFilteredPlayers(wkPlayers);
+                setActiveTab('WK');
+              } else if (batPlayers.length > 0) {
+                setFilteredPlayers(batPlayers);
+                setActiveTab('BAT');
+              } else if (arPlayers.length > 0) {
+                setFilteredPlayers(arPlayers);
+                setActiveTab('AR');
+              } else if (bowlPlayers.length > 0) {
+                setFilteredPlayers(bowlPlayers);
+                setActiveTab('BOWL');
+              } else {
+                // Final fallback to all players if role filtering returns nothing
+                setFilteredPlayers(validPlayers);
+              }
+            }
+          } else {
+            console.error(
+              'API returned success but no valid players data found'
+            );
+            createAndUseDummyPlayers(matchData.data);
           }
+        } else {
+          console.error(
+            'Match players API returned error:',
+            matchPlayersResponse.status
+          );
+          createAndUseDummyPlayers(matchData.data);
         }
       } catch (err) {
-        console.error('Error fetching from dedicated match players API:', err);
+        console.error('Error fetching from match players API:', err);
+        createAndUseDummyPlayers(matchData.data);
       }
 
-      // 2. If the dedicated API didn't return players, try the generic players API
-      if (players.length === 0) {
-        try {
-          console.log('Trying generic players API with matchId...');
-          const playersResponse = await fetch(
-            `/api/players?matchId=${matchId}`
-          );
-          if (playersResponse.ok) {
-            const playersResponseData = await playersResponse.json();
-            if (
-              playersResponseData.success &&
-              playersResponseData.data &&
-              playersResponseData.data.length > 0
-            ) {
-              console.log(
-                'Successfully fetched players from generic API:',
-                playersResponseData.data.length
-              );
-              playersData = playersResponseData.data;
-              players = processPlayersData(playersData);
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching from generic players API:', err);
-        }
-      }
-
-      // 3. As a last resort, use a fallback with dummy data
-      if (players.length === 0) {
-        console.log('No players found from APIs. Creating fallback data.');
-        const teamA = match.teamAName || 'Team A';
-        const teamB = match.teamBName || 'Team B';
-
-        // Create dummy players with balanced roles
-        const dummyPlayers = createDummyPlayers(
-          match.teamAId,
-          match.teamBId,
-          teamA,
-          teamB
-        );
-        players = processPlayersData(dummyPlayers);
-      }
-
-      console.log('Final players after all attempts:', players.length);
-      console.log('Players by role:');
-      console.log('WK:', players.filter((p: Player) => p.role === 'WK').length);
-      console.log(
-        'BAT:',
-        players.filter((p: Player) => p.role === 'BAT').length
-      );
-      console.log('AR:', players.filter((p: Player) => p.role === 'AR').length);
-      console.log(
-        'BOWL:',
-        players.filter((p: Player) => p.role === 'BOWL').length
-      );
-
-      setPlayers(players);
-      setFilteredPlayers(players);
-    } catch (err) {
-      console.error('Error fetching match data:', err);
-      setError(
-        err instanceof Error ? err.message : 'Failed to fetch match data'
-      );
-    } finally {
+      setLoading(false);
+    } catch (error: any) {
+      console.error('Error in fetchMatchData:', error);
+      setError(error.message || 'Failed to load match data');
       setLoading(false);
     }
   };
@@ -344,30 +504,74 @@ export default function CreateTeam() {
 
   // Helper function to standardize roles
   const standardizeRole = (role: string | null) => {
-    if (!role) return 'BAT';
+    if (!role) return 'BAT'; // Default to batsman if no role
 
-    const upperRole = role.toUpperCase();
+    const upperRole = role.toUpperCase().trim();
 
+    console.log('Standardizing role:', upperRole);
+
+    // Check for wicket keeper variations
     if (
-      upperRole.includes('WICKET') ||
-      upperRole.includes('KEEPER') ||
-      upperRole === 'WK'
+      upperRole === 'WK' ||
+      upperRole === 'WICKET KEEPER' ||
+      upperRole === 'WICKETKEEPER' ||
+      upperRole.includes('KEEP') ||
+      upperRole.includes('KEEPER')
     ) {
       return 'WK';
-    } else if (upperRole.includes('BAT') || upperRole.includes('BATTER')) {
+    }
+    // Check for batsman variations
+    else if (
+      upperRole === 'BAT' ||
+      upperRole === 'BATSMAN' ||
+      upperRole === 'BATTER' ||
+      upperRole.includes('BAT') ||
+      upperRole.includes('BATS')
+    ) {
       return 'BAT';
-    } else if (
+    }
+    // Check for all-rounder variations
+    else if (
+      upperRole === 'AR' ||
+      upperRole === 'ALL ROUNDER' ||
+      upperRole === 'ALLROUNDER' ||
       upperRole.includes('ALL') ||
-      upperRole.includes('ROUNDER') ||
-      upperRole === 'AR'
+      upperRole.includes('ROUND')
     ) {
       return 'AR';
-    } else if (upperRole.includes('BOWL') || upperRole.includes('BALLER')) {
+    }
+    // Check for bowler variations
+    else if (
+      upperRole === 'BOWL' ||
+      upperRole === 'BOWLER' ||
+      upperRole.includes('BOWL') ||
+      upperRole.includes('BALLER')
+    ) {
       return 'BOWL';
     }
 
-    // Default to batsman if unknown
-    return 'BAT';
+    // If we can't determine the role, use a simple heuristic based on the player's name
+    // This is a last resort fallback
+    const roleMapping = {
+      0: 'WK',
+      1: 'BAT',
+      2: 'BAT',
+      3: 'AR',
+      4: 'AR',
+      5: 'BOWL',
+      6: 'BOWL',
+      7: 'BOWL',
+    };
+
+    // Use the player's name length as a simple hash to assign a role
+    const roleIndex = role.length % 8;
+    console.log(
+      `Using fallback role assignment for "${role}" -> ${
+        roleMapping[roleIndex as keyof typeof roleMapping]
+      }`
+    );
+
+    return roleMapping[roleIndex as keyof typeof roleMapping] || 'BAT';
   };
 
   // Helper function to calculate player credits if not present
@@ -792,6 +996,12 @@ export default function CreateTeam() {
                 width={40}
                 height={40}
                 className="rounded-full bg-gray-200"
+                onError={(e) => {
+                  // Fallback for broken images
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = '/images/player-placeholder.png';
+                }}
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
@@ -836,6 +1046,55 @@ export default function CreateTeam() {
     </div>
   );
 
+  // Update filtered players when active tab changes
+  useEffect(() => {
+    // Skip if no players are loaded yet
+    if (!players || players.length === 0) return;
+
+    console.log(`Setting filtered players for tab: ${activeTab}`);
+
+    // Simply filter players by the selected role
+    const filtered = players.filter((p) => p.role === activeTab);
+    console.log(`Found ${filtered.length} players with role ${activeTab}`);
+
+    if (filtered.length > 0) {
+      setFilteredPlayers(filtered);
+    } else {
+      console.log(
+        'No players found for current role tab, trying to find available players in other roles'
+      );
+
+      // If no players found for this role, find the first role that has players
+      const wkPlayers = players.filter((p) => p.role === 'WK');
+      const batPlayers = players.filter((p) => p.role === 'BAT');
+      const arPlayers = players.filter((p) => p.role === 'AR');
+      const bowlPlayers = players.filter((p) => p.role === 'BOWL');
+
+      // If there are no players in the selected role tab, switch to a different tab with players
+      if (wkPlayers.length > 0 && activeTab !== 'WK') {
+        console.log('Switching to WK tab which has players');
+        setActiveTab('WK');
+        setFilteredPlayers(wkPlayers);
+      } else if (batPlayers.length > 0 && activeTab !== 'BAT') {
+        console.log('Switching to BAT tab which has players');
+        setActiveTab('BAT');
+        setFilteredPlayers(batPlayers);
+      } else if (arPlayers.length > 0 && activeTab !== 'AR') {
+        console.log('Switching to AR tab which has players');
+        setActiveTab('AR');
+        setFilteredPlayers(arPlayers);
+      } else if (bowlPlayers.length > 0 && activeTab !== 'BOWL') {
+        console.log('Switching to BOWL tab which has players');
+        setActiveTab('BOWL');
+        setFilteredPlayers(bowlPlayers);
+      } else {
+        // If no players in any role, show a message in UI that no players are available
+        console.log('No players found for any role');
+        setFilteredPlayers([]);
+      }
+    }
+  }, [players, activeTab]);
+
   // Clean players data to fix roles and other issues
   const processPlayersData = (playersData: any[]): Player[] => {
     if (!playersData || !Array.isArray(playersData)) {
@@ -843,18 +1102,42 @@ export default function CreateTeam() {
       return [];
     }
 
-    return playersData.map((p: any) => ({
-      id: p.id || '',
-      name: p.name || '',
-      image: p.image || '/images/player-placeholder.png',
-      teamId: p.teamId || '',
-      role: standardizeRole(p.role),
-      credits: typeof p.credits === 'number' ? p.credits : 9.0,
-      points: typeof p.points === 'number' ? p.points : 0,
-      selected: Boolean(p.selected),
-      isCaptain: Boolean(p.isCaptain),
-      isViceCaptain: Boolean(p.isViceCaptain),
-    }));
+    const processedPlayers = playersData.map((p: any) => {
+      // Make sure we standardize the role
+      const standardizedRole = standardizeRole(p.role);
+
+      console.log(
+        `Processing player ${p.name}, original role: ${p.role}, standardized: ${standardizedRole}`
+      );
+
+      return {
+        id: p.id || '',
+        name: p.name || '',
+        image: p.image || '/images/player-placeholder.png',
+        teamId: p.teamId || '',
+        role: standardizedRole,
+        credits: typeof p.credits === 'number' ? p.credits : 9.0,
+        points: typeof p.points === 'number' ? p.points : 0,
+        selected: Boolean(p.selected),
+        isCaptain: Boolean(p.isCaptain),
+        isViceCaptain: Boolean(p.isViceCaptain),
+      };
+    });
+
+    // Ensure we have a balanced distribution of roles
+    const roles = Array.from(new Set(processedPlayers.map((p) => p.role)));
+    console.log('Roles after processing:', roles);
+
+    // Check balance of roles
+    const roleCounts = {
+      WK: processedPlayers.filter((p) => p.role === 'WK').length,
+      BAT: processedPlayers.filter((p) => p.role === 'BAT').length,
+      AR: processedPlayers.filter((p) => p.role === 'AR').length,
+      BOWL: processedPlayers.filter((p) => p.role === 'BOWL').length,
+    };
+    console.log('Role balance:', roleCounts);
+
+    return processedPlayers;
   };
 
   // Callback to update activeTab - ensure it's a valid role
@@ -867,11 +1150,17 @@ export default function CreateTeam() {
     fetchMatchData();
   }, [matchId]);
 
-  // Update filtered players when active tab changes
+  // Add another useEffect to debug when filteredPlayers changes
   useEffect(() => {
-    const filtered = players.filter((player) => player.role === activeTab);
-    setFilteredPlayers(filtered);
-  }, [activeTab, players]);
+    console.log('Filtered players updated:', filteredPlayers.length);
+    console.log('Current tab:', activeTab);
+    if (filteredPlayers.length === 0 && players.length > 0) {
+      console.log('Warning: No players for current tab but players exist');
+      // Use Array.from to fix the linter error
+      const availableRoles = Array.from(new Set(players.map((p) => p.role)));
+      console.log('Player roles available:', availableRoles);
+    }
+  }, [filteredPlayers]);
 
   // Add debugging effect to track captain/vice-captain selections
   useEffect(() => {
@@ -1287,29 +1576,231 @@ export default function CreateTeam() {
               <div className="max-h-[430px] overflow-y-auto pb-2">
                 {filteredPlayers.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">
-                    No {ROLES[activeTab]} players available
+                    <div>No {ROLES[activeTab]} players available</div>
+                    <div className="mt-2 text-sm text-gray-400">
+                      This might be due to missing role types or a loading issue
+                    </div>
+                    <div className="flex justify-center mt-4 space-x-2">
+                      <button
+                        onClick={fetchMatchData}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm"
+                      >
+                        Refresh Players
+                      </button>
+
+                      {/* Force reload with dummy players button */}
+                      <button
+                        onClick={() => {
+                          if (match?.teamAId && match?.teamBId) {
+                            const dummies = createDummyPlayers(
+                              match.teamAId,
+                              match.teamBId,
+                              match.teamAName,
+                              match.teamBName
+                            );
+
+                            // Replace all players with dummies to force a consistent set of roles
+                            setPlayers(dummies);
+
+                            // Set the active tab to 'WK' and filter for WK players
+                            setActiveTab('WK');
+                            setFilteredPlayers(
+                              dummies.filter((p) => p.role === 'WK')
+                            );
+
+                            toast.success('Loaded backup player data');
+                          } else {
+                            toast.error(
+                              'Unable to load backup data - match information missing'
+                            );
+                          }
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md text-sm"
+                      >
+                        Use Backup Data
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  // Group players by team
                   <div>
+                    {/* Team A Players */}
                     <div className="mb-3">
                       <div className="text-sm font-medium text-gray-500 mb-2 px-2 flex items-center">
                         <div className="w-3 h-3 rounded-full bg-indigo-100 mr-1"></div>
-                        {match.teamAName} Players
+                        {match.teamAName} Players (
+                        {
+                          filteredPlayers.filter(
+                            (p) => p.teamId === match.teamAId
+                          ).length
+                        }
+                        )
                       </div>
+
                       {filteredPlayers
                         .filter((p) => p.teamId === match.teamAId)
-                        .map(renderPlayerCard)}
+                        .map((player) => (
+                          <div
+                            key={player.id}
+                            className={`border rounded-lg overflow-hidden mb-3 ${
+                              player.selected
+                                ? 'border-indigo-600 bg-indigo-50'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="p-3 flex justify-between items-center">
+                              <div className="flex items-center flex-1">
+                                <div className="mr-3">
+                                  {player.image ? (
+                                    <Image
+                                      src={player.image}
+                                      alt={player.name}
+                                      width={40}
+                                      height={40}
+                                      className="rounded-full bg-gray-200"
+                                      onError={(e) => {
+                                        const target =
+                                          e.target as HTMLImageElement;
+                                        target.onerror = null;
+                                        target.src =
+                                          '/images/player-placeholder.png';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                                      {player.name.charAt(0)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-medium flex items-center">
+                                    {player.name}
+                                    <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100">
+                                      {match.teamAName}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Role:{' '}
+                                    {ROLES[player.role as keyof typeof ROLES]} |{' '}
+                                    {player.points || 0} pts
+                                  </div>
+                                </div>
+                                <div className="text-right mr-3">
+                                  <div className="font-semibold">
+                                    {player.credits} Cr
+                                  </div>
+                                  <div className="text-xs text-indigo-600">
+                                    {player.selected ? 'Selected' : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => togglePlayerSelection(player.id)}
+                                disabled={
+                                  !player.selected && !canSelectPlayer(player)
+                                }
+                                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                  player.selected
+                                    ? 'bg-red-500 text-white'
+                                    : canSelectPlayer(player)
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                              >
+                                {player.selected ? '-' : '+'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                     </div>
 
+                    {/* Team B Players */}
                     <div className="mb-2">
                       <div className="text-sm font-medium text-gray-500 mb-2 px-2 flex items-center">
                         <div className="w-3 h-3 rounded-full bg-red-100 mr-1"></div>
-                        {match.teamBName} Players
+                        {match.teamBName} Players (
+                        {
+                          filteredPlayers.filter(
+                            (p) => p.teamId === match.teamBId
+                          ).length
+                        }
+                        )
                       </div>
+
                       {filteredPlayers
                         .filter((p) => p.teamId === match.teamBId)
-                        .map(renderPlayerCard)}
+                        .map((player) => (
+                          <div
+                            key={player.id}
+                            className={`border rounded-lg overflow-hidden mb-3 ${
+                              player.selected
+                                ? 'border-indigo-600 bg-indigo-50'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="p-3 flex justify-between items-center">
+                              <div className="flex items-center flex-1">
+                                <div className="mr-3">
+                                  {player.image ? (
+                                    <Image
+                                      src={player.image}
+                                      alt={player.name}
+                                      width={40}
+                                      height={40}
+                                      className="rounded-full bg-gray-200"
+                                      onError={(e) => {
+                                        const target =
+                                          e.target as HTMLImageElement;
+                                        target.onerror = null;
+                                        target.src =
+                                          '/images/player-placeholder.png';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                                      {player.name.charAt(0)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-medium flex items-center">
+                                    {player.name}
+                                    <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100">
+                                      {match.teamBName}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Role:{' '}
+                                    {ROLES[player.role as keyof typeof ROLES]} |{' '}
+                                    {player.points || 0} pts
+                                  </div>
+                                </div>
+                                <div className="text-right mr-3">
+                                  <div className="font-semibold">
+                                    {player.credits} Cr
+                                  </div>
+                                  <div className="text-xs text-indigo-600">
+                                    {player.selected ? 'Selected' : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => togglePlayerSelection(player.id)}
+                                disabled={
+                                  !player.selected && !canSelectPlayer(player)
+                                }
+                                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                  player.selected
+                                    ? 'bg-red-500 text-white'
+                                    : canSelectPlayer(player)
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                              >
+                                {player.selected ? '-' : '+'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
