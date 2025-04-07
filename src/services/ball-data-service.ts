@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { fetchLiveMatchDetails } from './live-scoring-service';
+import { initWalletFixScheduler } from '@/lib/init-wallet-fix';
 
 /**
  * Synchronizes live match data from SportMonks to our database
@@ -13,6 +14,32 @@ export async function syncLiveMatchData(
   forceSync: boolean = false
 ) {
   try {
+    // CRITICAL FIX: Check if match is already completed before making any API calls
+    const matchStatus = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: {
+        status: true,
+        name: true,
+      },
+    });
+
+    // If match is not found or already completed, stop processing immediately
+    if (!matchStatus) {
+      console.error(`Match ${matchId} not found in database, cannot sync`);
+      return null;
+    }
+    initWalletFixScheduler();
+    if (matchStatus.status === 'completed') {
+      console.log(
+        `🛑 SKIPPED: Match ${matchStatus.name} (${matchId}) is already completed in database, skipping sync`
+      );
+      return {
+        status: 'completed',
+        message: 'Match already completed, sync skipped',
+        matchId,
+      };
+    }
+
     console.log(
       `Syncing live match data for match ${matchId} (SportMonk ID: ${sportMonkId}), force: ${forceSync}`
     );

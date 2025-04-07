@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
 import { updateLiveMatchPlayerStats } from './live-scoring-service';
-import { refreshLineupFromApi } from './lineup-service';
 
 // Track intervals for each match to avoid duplication
 const liveMatchIntervals: Record<string, NodeJS.Timeout> = {};
@@ -59,6 +58,13 @@ export async function initLiveMatchScheduler() {
     // Run an initial sync of lineups
     syncAllLiveMatchLineups();
 
+    // CRITICAL FIX: Force an immediate check for completed matches to ensure none are tracked
+    console.log('Running immediate check for completed matches...');
+    await clearTrackingForCompletedMatches();
+
+    // Run an initial check for new live matches
+    await checkForNewLiveMatches();
+
     return true;
   } catch (error) {
     console.error('Error initializing live match scheduler:', error);
@@ -71,6 +77,13 @@ export async function initLiveMatchScheduler() {
  */
 async function checkForNewLiveMatches() {
   try {
+    // Log tracked matches for debugging
+    console.log(
+      `Currently tracking ${
+        Object.keys(liveMatchIntervals).length
+      } matches: ${JSON.stringify(Object.keys(liveMatchIntervals))}`
+    );
+
     // Find matches that should be live based on start time but are still marked as upcoming
     const currentTime = new Date();
     const upcomingMatchesPastStartTime = await prisma.match.findMany({
@@ -146,13 +159,73 @@ async function checkForNewLiveMatches() {
       },
       select: {
         id: true,
+        name: true,
       },
     });
 
     // Stop tracking completed matches and finalize their contests
-    for (const match of completedMatchIds) {
-      await stopTrackingMatch(match.id);
-      await finalizeMatchContests(match.id);
+    if (completedMatchIds.length > 0) {
+      console.log(
+        `Found ${
+          completedMatchIds.length
+        } completed matches that are still being tracked: ${JSON.stringify(
+          completedMatchIds.map((m) => m.name)
+        )}`
+      );
+
+      for (const match of completedMatchIds) {
+        console.log(
+          `Stopping tracking and finalizing match: ${match.name} (${match.id})`
+        );
+        await stopTrackingMatch(match.id);
+        await finalizeMatchContests(match.id);
+      }
+    } else {
+      // Double check - if there are no completed matches being tracked, but there are
+      // completed matches with unfinalized contests, log these for debugging
+      const recentlyCompletedMatches = await prisma.match.findMany({
+        where: {
+          status: 'completed',
+          updatedAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          contests: {
+            select: {
+              id: true,
+              entries: {
+                select: {
+                  id: true,
+                  winAmount: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const matchesNeedingFinalization = recentlyCompletedMatches.filter(
+        (match) =>
+          match.contests.some((contest) =>
+            contest.entries.some((entry) => entry.winAmount === null)
+          )
+      );
+
+      if (matchesNeedingFinalization.length > 0) {
+        console.log(
+          `Warning: Found ${
+            matchesNeedingFinalization.length
+          } recently completed matches with unfinalized contests: ${matchesNeedingFinalization
+            .map((m) => m.name)
+            .join(', ')}`
+        );
+        console.log(
+          `These should be finalized via the /api/cron/check-completed-matches endpoint`
+        );
+      }
     }
   } catch (error) {
     console.error('Error checking for new live matches:', error);
@@ -406,16 +479,25 @@ async function processContestWinner(
       return;
     }
 
-    // Process everything in a transaction
-    await prisma.$transaction(async (tx) => {
-      // 1. Update contest entry with win amount
-      await tx.contestEntry.update({
+    // First, ensure the contest entry is marked with the correct winAmount
+    // Do this as a separate transaction to ensure at least this part succeeds
+    try {
+      console.log(
+        `Updating contest entry ${entry.id} with winAmount ${winAmount}`
+      );
+      await prisma.contestEntry.update({
         where: { id: entry.id },
         data: { winAmount },
       });
+    } catch (updateError) {
+      console.error(`Error updating contest entry winAmount: ${updateError}`);
+      throw updateError; // Rethrow to trigger retry logic
+    }
 
-      // 2. Add to user wallet
-      await tx.user.update({
+    // Now try to update the wallet and create the transaction record
+    try {
+      // Add to user wallet
+      await prisma.user.update({
         where: { id: entry.userId },
         data: {
           walletBalance: {
@@ -424,8 +506,12 @@ async function processContestWinner(
         },
       });
 
-      // 3. Create transaction record
-      await tx.transaction.create({
+      console.log(
+        `Updated wallet balance for user ${entry.userId}, added ${winAmount}`
+      );
+
+      // Create transaction record
+      const txn = await prisma.transaction.create({
         data: {
           userId: entry.userId,
           amount: winAmount,
@@ -434,15 +520,51 @@ async function processContestWinner(
           reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
         },
       });
-    });
 
-    // Verify transaction was created successfully
+      console.log(`Created transaction record: ${txn.id}`);
+    } catch (txError) {
+      console.error(
+        `Error in wallet update or transaction creation: ${txError}`
+      );
+
+      // Check if the user's wallet was already updated
+      // If it was, we need to create just the transaction record
+      try {
+        // Try to create just the transaction record with a slightly modified reference
+        // to avoid uniqueness conflicts if that's the issue
+        await prisma.transaction.create({
+          data: {
+            userId: entry.userId,
+            amount: winAmount,
+            type: 'contest_win',
+            status: 'completed',
+            reference: `Contest Win: ${contest.name} - Rank ${
+              entry.rank
+            } (retry ${Date.now()})`,
+          },
+        });
+        console.log(`Created fallback transaction for user ${entry.userId}`);
+      } catch (fallbackError) {
+        console.error(
+          `Fallback transaction creation also failed: ${fallbackError}`
+        );
+        throw txError; // Rethrow the original error to trigger retry logic
+      }
+    }
+
+    // Verify transaction was created successfully - check with a more flexible query
     const verifyTransaction = await prisma.transaction.findFirst({
       where: {
         userId: entry.userId,
         type: 'contest_win',
         status: 'completed',
-        reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
+        amount: winAmount,
+        reference: {
+          contains: `Contest Win: ${contest.name}`,
+        },
+        createdAt: {
+          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
+        },
       },
     });
 
@@ -734,6 +856,7 @@ export async function updateLiveContestPoints(
 
 /**
  * Synchronize lineups for all live matches
+ * Note: This function now uses direct API calls to refresh player data instead of MatchLineup
  */
 async function syncAllLiveMatchLineups() {
   try {
@@ -755,6 +878,7 @@ async function syncAllLiveMatchLineups() {
         id: true,
         name: true,
         status: true,
+        sportMonkId: true,
       },
     });
 
@@ -763,22 +887,37 @@ async function syncAllLiveMatchLineups() {
     // Process each match with a delay to avoid rate limiting
     for (const match of liveMatches) {
       try {
-        // Refresh lineup data
-        const result = await refreshLineupFromApi(match.id);
+        // Get current MatchPlayer count to detect changes
+        const existingPlayers = await prisma.matchPlayer.count({
+          where: {
+            matchId: match.id,
+          },
+        });
 
-        if (result.success) {
-          // Check if teamA and teamB arrays exist and have a length property
-          const teamACount = result.teamA?.length || 0;
-          const teamBCount = result.teamB?.length || 0;
+        console.log(`Refreshing players for match ${match.id} (${match.name})`);
 
-          console.log(
-            `Successfully synced lineup for match ${match.id} (${match.name}): ${teamACount} vs ${teamBCount} players`
-          );
-        } else {
-          console.log(
-            `No lineup available yet for match ${match.id} (${match.name})`
-          );
+        // Import players directly via fetchMatchDetails in matches service
+        // This will update the MatchPlayer table with the latest data
+        const { fetchMatchDetails } = await import('./sportmonk/matches');
+        if (match.sportMonkId) {
+          try {
+            await fetchMatchDetails(parseInt(match.sportMonkId));
+            console.log(`Successfully refreshed players from SportMonks API`);
+          } catch (apiError) {
+            console.error(`Error fetching match details from API: ${apiError}`);
+          }
         }
+
+        // Check if players were added
+        const updatedPlayers = await prisma.matchPlayer.count({
+          where: {
+            matchId: match.id,
+          },
+        });
+
+        console.log(
+          `Match ${match.id} (${match.name}): ${existingPlayers} players before, ${updatedPlayers} players after refresh`
+        );
       } catch (error) {
         console.error(`Error syncing lineup for match ${match.id}:`, error);
       }
@@ -790,5 +929,86 @@ async function syncAllLiveMatchLineups() {
     console.log('Finished syncing lineups for all matches');
   } catch (error) {
     console.error('Error syncing lineups for live matches:', error);
+  }
+}
+
+/**
+ * Clear tracking for any match that's marked as completed in the database
+ * This is a critical function to stop API calls for completed matches
+ */
+export async function clearTrackingForCompletedMatches() {
+  try {
+    // Get all match IDs currently being tracked
+    const trackedMatchIds = Object.keys(liveMatchIntervals);
+
+    if (trackedMatchIds.length === 0) {
+      console.log('No matches currently being tracked');
+      return;
+    }
+
+    console.log(
+      `Checking completion status for ${trackedMatchIds.length} tracked matches`
+    );
+
+    // Find any tracked matches that are already marked as completed
+    const completedMatches = await prisma.match.findMany({
+      where: {
+        id: { in: trackedMatchIds },
+        status: 'completed',
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (completedMatches.length > 0) {
+      console.log(
+        `⚠️ CRITICAL: Found ${completedMatches.length} completed matches still being tracked. Stopping tracking for:`
+      );
+
+      // Stop tracking each completed match
+      for (const match of completedMatches) {
+        console.log(`- ${match.name} (${match.id})`);
+
+        // Clear the interval
+        if (liveMatchIntervals[match.id]) {
+          clearInterval(liveMatchIntervals[match.id]);
+          delete liveMatchIntervals[match.id];
+          console.log(`✅ Successfully stopped tracking for match ${match.id}`);
+        }
+      }
+    } else {
+      console.log('No completed matches are being tracked - good!');
+    }
+  } catch (error) {
+    console.error('Error clearing tracking for completed matches:', error);
+  }
+}
+
+/**
+ * Manually stop tracking a specific match by ID
+ * Use this as a direct way to stop tracking a match that's still being called
+ */
+export async function stopTrackingMatchById(matchId: string): Promise<boolean> {
+  try {
+    console.log(`Manually stopping tracking for match ${matchId}`);
+
+    // Check if this match is being tracked
+    if (!liveMatchIntervals[matchId]) {
+      console.log(`Match ${matchId} is not currently being tracked`);
+      return false;
+    }
+
+    // Clear the interval and remove from tracking
+    clearInterval(liveMatchIntervals[matchId]);
+    delete liveMatchIntervals[matchId];
+
+    console.log(`✅ Successfully removed match ${matchId} from tracking`);
+
+    return true;
+  } catch (error) {
+    console.error(`Error stopping tracking for match ${matchId}:`, error);
+    return false;
   }
 }

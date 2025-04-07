@@ -46,7 +46,7 @@ interface Match {
 }
 
 interface PrizeBreakup {
-  rank: number;
+  rank: number | string;
   percentage: number;
   amount: number;
 }
@@ -421,21 +421,33 @@ export default function ContestDetailsPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {prizeBreakup.map((prize) => (
-                    <tr key={prize.rank}>
+                    <tr
+                      key={
+                        typeof prize.rank === 'number'
+                          ? prize.rank
+                          : `rank-${prize.rank}`
+                      }
+                    >
                       <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {prize.rank === 1
+                        {prize.rank === 1 || prize.rank === '1'
                           ? '1st'
-                          : prize.rank === 2
+                          : prize.rank === 2 || prize.rank === '2'
                           ? '2nd'
-                          : prize.rank === 3
+                          : prize.rank === 3 || prize.rank === '3'
                           ? '3rd'
+                          : typeof prize.rank === 'string' &&
+                            prize.rank.includes('-')
+                          ? prize.rank // For rank ranges like "101-200"
                           : `${prize.rank}th`}
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
                         {prize.percentage}%
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-green-600 font-medium">
-                        ₹{prize.amount.toFixed(2)}
+                        ₹
+                        {typeof prize.amount === 'number'
+                          ? prize.amount.toFixed(2)
+                          : prize.amount}
                       </td>
                     </tr>
                   ))}

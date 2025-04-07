@@ -498,3 +498,47 @@ export async function getById(
 
 // This is a handler map for dynamic routes
 export { getById as GET_PARAM_ID };
+
+export async function POST(req: Request) {
+  try {
+    const {
+      name,
+      role,
+      country,
+      teamName,
+      battingStyle,
+      bowlingStyle,
+      imageUrl,
+    } = await req.json();
+
+    // Validate required fields
+    if (!name || !role || !country || !teamName) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Create new player
+    const player = await prisma.player.create({
+      data: {
+        name,
+        role,
+        country,
+        teamName,
+        battingStyle,
+        bowlingStyle,
+        imageUrl,
+        isActive: true,
+      },
+    });
+
+    return NextResponse.json(player);
+  } catch (error) {
+    console.error('Error creating player:', error);
+    return NextResponse.json(
+      { error: 'Failed to create player' },
+      { status: 500 }
+    );
+  }
+}

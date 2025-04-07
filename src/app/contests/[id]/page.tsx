@@ -138,24 +138,51 @@ export default function ContestPage({ params }: { params: { id: string } }) {
     const fetchContest = async () => {
       try {
         setLoading(true);
+        console.log(`[Contest Page] Fetching contest with ID: ${contestId}`);
         const response = await fetch(`/api/contests/${contestId}`);
+
         if (!response.ok) {
-          throw new Error('Failed to fetch contest');
+          const errorData = await response.json();
+          console.error(`[Contest Page] Failed to fetch contest:`, {
+            status: response.status,
+            error: errorData,
+          });
+          throw new Error(errorData.error || 'Failed to fetch contest');
         }
+
         const data = await response.json();
+        console.log(`[Contest Page] Successfully fetched contest:`, {
+          id: data.id,
+          name: data.name,
+          matchId: data.matchId,
+          filledSpots: data.filledSpots,
+        });
+
         setContest(data);
 
         // Fetch prize breakup
+        console.log(
+          `[Contest Page] Fetching prize breakup for contest: ${contestId}`
+        );
         const prizeResponse = await fetch(`/api/contests/${contestId}/prizes`);
         if (prizeResponse.ok) {
           const prizeData = await prizeResponse.json();
+          console.log(
+            `[Contest Page] Successfully fetched prize breakup with ${prizeData.length} prizes`
+          );
           setPrizeBreakup(prizeData);
+        } else {
+          console.error(`[Contest Page] Failed to fetch prize breakup:`, {
+            status: prizeResponse.status,
+          });
         }
 
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching contest:', err);
-        setError('Failed to load contest details');
+        console.error('[Contest Page] Error fetching contest:', err);
+        setError(
+          err instanceof Error ? err.message : 'Failed to load contest details'
+        );
         setLoading(false);
       }
     };
@@ -389,6 +416,29 @@ export default function ContestPage({ params }: { params: { id: string } }) {
       playerStats: [], // Add empty player stats
     });
   };
+
+  // Helper function to get the prize amount for a given rank
+  function getPrizeForRank(
+    rank: number,
+    prizeBreakup: any[]
+  ): number | undefined {
+    if (!rank || !prizeBreakup || prizeBreakup.length === 0) return undefined;
+
+    // First check for direct rank match
+    const directMatch = prizeBreakup.find((p) => p.rank === rank);
+    if (directMatch) return directMatch.amount || directMatch.prize;
+
+    // Then check for range matches (e.g. "101-200")
+    const rangeMatch = prizeBreakup.find((p) => {
+      if (typeof p.rank === 'string' && p.rank.includes('-')) {
+        const [start, end] = p.rank.split('-').map(Number);
+        return rank >= start && rank <= end;
+      }
+      return false;
+    });
+
+    return rangeMatch ? rangeMatch.amount || rangeMatch.prize : undefined;
+  }
 
   if (loading) {
     return (
@@ -639,9 +689,8 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                               {entry.rank &&
                               contest.match?.status === 'completed'
                                 ? `₹${
-                                    prizeBreakup.find(
-                                      (p) => p.rank === entry.rank
-                                    )?.prize || 0
+                                    getPrizeForRank(entry.rank, prizeBreakup) ||
+                                    0
                                   }`
                                 : '-'}
                             </td>
@@ -824,11 +873,11 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                                 matchStats.playerStats
                                   .filter(
                                     (player: PlayerStat) =>
-                                      (player.runs || 0) > 0
+                                      (player.runs ?? 0) > 0
                                   )
                                   .sort(
                                     (a: PlayerStat, b: PlayerStat) =>
-                                      (b.runs || 0) - (a.runs || 0)
+                                      (b.runs ?? 0) - (a.runs ?? 0)
                                   )
                                   .slice(0, 10)
                                   .map((player: PlayerStat, idx: number) => (
@@ -962,11 +1011,12 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                                 matchStats.playerStats
                                   .filter(
                                     (player: PlayerStat) =>
-                                      player.wickets > 0 || player.overs > 0
+                                      (player.wickets ?? 0) > 0 ||
+                                      (player.overs ?? 0) > 0
                                   )
                                   .sort(
                                     (a: PlayerStat, b: PlayerStat) =>
-                                      b.wickets - a.wickets
+                                      (b.wickets ?? 0) - (a.wickets ?? 0)
                                   )
                                   .slice(0, 10)
                                   .map((player: PlayerStat, idx: number) => (
@@ -1030,7 +1080,8 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                               {(!matchStats.playerStats ||
                                 matchStats.playerStats.filter(
                                   (player: PlayerStat) =>
-                                    player.wickets > 0 || player.overs > 0
+                                    (player.wickets ?? 0) > 0 ||
+                                    (player.overs ?? 0) > 0
                                 ).length === 0) && (
                                 <tr>
                                   <td
@@ -1095,16 +1146,18 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                                 matchStats.playerStats
                                   .filter(
                                     (player: PlayerStat) =>
-                                      player.catches > 0 ||
-                                      player.stumpings > 0 ||
-                                      player.runOuts > 0
+                                      (player.catches ?? 0) > 0 ||
+                                      (player.stumpings ?? 0) > 0 ||
+                                      (player.runOuts ?? 0) > 0
                                   )
                                   .sort(
                                     (a: PlayerStat, b: PlayerStat) =>
-                                      b.catches +
-                                      b.stumpings +
-                                      b.runOuts -
-                                      (a.catches + a.stumpings + a.runOuts)
+                                      (b.catches ?? 0) +
+                                      (b.stumpings ?? 0) +
+                                      (b.runOuts ?? 0) -
+                                      ((a.catches ?? 0) +
+                                        (a.stumpings ?? 0) +
+                                        (a.runOuts ?? 0))
                                   )
                                   .slice(0, 10)
                                   .map((player: PlayerStat, idx: number) => (
@@ -1155,9 +1208,9 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                                       </td>
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-green-600">
                                         {(
-                                          player.catches * 4 +
-                                          player.stumpings * 6 +
-                                          player.runOuts * 4
+                                          (player.catches ?? 0) * 4 +
+                                          (player.stumpings ?? 0) * 6 +
+                                          (player.runOuts ?? 0) * 4
                                         ).toFixed(1)}
                                       </td>
                                     </tr>
@@ -1166,9 +1219,9 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                               {(!matchStats.playerStats ||
                                 matchStats.playerStats.filter(
                                   (player: PlayerStat) =>
-                                    player.catches > 0 ||
-                                    player.stumpings > 0 ||
-                                    player.runOuts > 0
+                                    (player.catches ?? 0) > 0 ||
+                                    (player.stumpings ?? 0) > 0 ||
+                                    (player.runOuts ?? 0) > 0
                                 ).length === 0) && (
                                 <tr>
                                   <td

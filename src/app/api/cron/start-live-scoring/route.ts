@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { initLiveMatchScheduler } from '@/services/live-match-scheduler';
+import {
+  initLiveMatchScheduler,
+  clearTrackingForCompletedMatches,
+} from '@/services/live-match-scheduler';
 
 // Track if scheduler is already running
 let schedulerRunning = false;
@@ -19,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     if (!isAuthorizedCron) {
       const session = await getServerSession(authOptions);
-      if (!session?.user?.role === 'ADMIN') {
+      if (!session?.user || session.user.role !== 'ADMIN') {
         return NextResponse.json(
           { success: false, error: 'Unauthorized' },
           { status: 401 }
@@ -29,10 +32,26 @@ export async function POST(request: NextRequest) {
 
     // Don't start if already running
     if (schedulerRunning) {
-      return NextResponse.json({
-        success: true,
-        message: 'Live scoring system is already running',
-      });
+      // Even if already running, clear any completed matches to ensure proper cleanup
+      try {
+        await clearTrackingForCompletedMatches();
+        return NextResponse.json({
+          success: true,
+          message:
+            'Live scoring system is already running. Cleaned up completed matches.',
+        });
+      } catch (cleanupError) {
+        console.error('Error cleaning up completed matches:', cleanupError);
+        return NextResponse.json({
+          success: true,
+          message:
+            'Live scoring system is already running, but cleanup failed.',
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
+      }
     }
 
     // Initialize the scheduler
@@ -73,7 +92,7 @@ export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const session = await getServerSession(authOptions);
-    if (!session?.user?.role === 'ADMIN') {
+    if (!session?.user || session.user.role !== 'ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }

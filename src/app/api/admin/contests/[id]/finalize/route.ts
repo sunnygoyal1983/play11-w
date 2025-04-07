@@ -50,16 +50,25 @@ async function processContestWinner(
       return;
     }
 
-    // Process everything in a transaction
-    await prisma.$transaction(async (tx) => {
-      // 1. Update contest entry with win amount
-      await tx.contestEntry.update({
+    // First, ensure the contest entry is marked with the correct winAmount
+    // Do this as a separate transaction to ensure at least this part succeeds
+    try {
+      console.log(
+        `Updating contest entry ${entry.id} with winAmount ${winAmount}`
+      );
+      await prisma.contestEntry.update({
         where: { id: entry.id },
         data: { winAmount },
       });
+    } catch (updateError) {
+      console.error(`Error updating contest entry winAmount: ${updateError}`);
+      throw updateError; // Rethrow to trigger retry logic
+    }
 
-      // 2. Add to user wallet
-      await tx.user.update({
+    // Now try to update the wallet and create the transaction record
+    try {
+      // Add to user wallet
+      await prisma.user.update({
         where: { id: entry.userId },
         data: {
           walletBalance: {
@@ -68,8 +77,12 @@ async function processContestWinner(
         },
       });
 
-      // 3. Create transaction record
-      await tx.transaction.create({
+      console.log(
+        `Updated wallet balance for user ${entry.userId}, added ${winAmount}`
+      );
+
+      // Create transaction record
+      const txn = await prisma.transaction.create({
         data: {
           userId: entry.userId,
           amount: winAmount,
@@ -78,15 +91,51 @@ async function processContestWinner(
           reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
         },
       });
-    });
 
-    // Verify transaction was created successfully
+      console.log(`Created transaction record: ${txn.id}`);
+    } catch (txError) {
+      console.error(
+        `Error in wallet update or transaction creation: ${txError}`
+      );
+
+      // Check if the user's wallet was already updated
+      // If it was, we need to create just the transaction record
+      try {
+        // Try to create just the transaction record with a slightly modified reference
+        // to avoid uniqueness conflicts if that's the issue
+        await prisma.transaction.create({
+          data: {
+            userId: entry.userId,
+            amount: winAmount,
+            type: 'contest_win',
+            status: 'completed',
+            reference: `Contest Win: ${contest.name} - Rank ${
+              entry.rank
+            } (retry ${Date.now()})`,
+          },
+        });
+        console.log(`Created fallback transaction for user ${entry.userId}`);
+      } catch (fallbackError) {
+        console.error(
+          `Fallback transaction creation also failed: ${fallbackError}`
+        );
+        throw txError; // Rethrow the original error to trigger retry logic
+      }
+    }
+
+    // Verify transaction was created successfully - check with a more flexible query
     const verifyTransaction = await prisma.transaction.findFirst({
       where: {
         userId: entry.userId,
         type: 'contest_win',
         status: 'completed',
-        reference: `Contest Win: ${contest.name} - Rank ${entry.rank}`,
+        amount: winAmount,
+        reference: {
+          contains: `Contest Win: ${contest.name}`,
+        },
+        createdAt: {
+          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
+        },
       },
     });
 

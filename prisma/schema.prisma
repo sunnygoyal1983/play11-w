@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,33 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
-
 model User {
-  id             String           @id @default(uuid())
-  name           String
-  email          String           @unique
-  password       String
-  image          String?
-  phone          String?
-  address        String?
-  dob            DateTime?
-  panNumber      String?
-  bankName       String?
-  accountNumber  String?
-  ifscCode       String?
+  id                String         @id @default(uuid())
+  name              String
+  email             String         @unique
+  password          String
+  image             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  walletBalance     Float          @default(0)
+  address           String?
+  dob               DateTime?
+  kycVerified       Boolean        @default(false)
+  panNumber         String?
+  phone             String?
+  role              UserRole       @default(USER)
   accountHolderName String?
-  kycVerified    Boolean          @default(false)
-  role           UserRole         @default(USER)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  walletBalance  Float            @default(0)
-  teams          FantasyTeam[]
-  contestEntries ContestEntry[]
-  transactions   Transaction[]
+  accountNumber     String?
+  bankName          String?
+  ifscCode          String?
+  contestEntries    ContestEntry[]
+  teams             FantasyTeam[]
+  transactions      Transaction[]
 }
 
 model Tournament {
@@ -47,186 +39,187 @@ model Tournament {
   image       String?
   country     String?
   season      String?
-  seasonId    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  seasonId    String?
   matches     Match[]
 }
 
 model Match {
-  id              String           @id @default(cuid())
-  sportMonkId     String           @unique
-  name            String
-  format          String?
-  status          String   @default("upcoming")
-  startTime       DateTime
-  endTime         DateTime?
-  venue           String?
-  teamAId         String
-  teamAName       String
-  teamALogo       String?
-  teamBId         String
-  teamBName       String
-  teamBLogo       String?
-  leagueId        String?
-  leagueName      String?
-  result          String?
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  tournament      Tournament?      @relation(fields: [leagueId], references: [sportMonkId])
-  players         MatchPlayer[]
-  contests        Contest[]
-  fantasyTeams    FantasyTeam[]
+  id               String            @id @default(cuid())
+  sportMonkId      String            @unique
+  name             String
+  format           String?
+  status           String            @default("upcoming")
+  startTime        DateTime
+  endTime          DateTime?
+  venue            String?
+  teamAId          String
+  teamAName        String
+  teamALogo        String?
+  teamBId          String
+  teamBName        String
+  teamBLogo        String?
+  leagueId         String?
+  leagueName       String?
+  result           String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  ballData         BallData[]
+  contests         Contest[]
+  fantasyTeams     FantasyTeam[]
+  tournament       Tournament?       @relation(fields: [leagueId], references: [sportMonkId])
+  players          MatchPlayer[]
+  matchSummary     MatchSummary?
   playerStatistics PlayerStatistic[]
-  ballData        BallData[]
-  matchSummary    MatchSummary?
-  lineup          MatchLineup?     // Relation to lineup
 }
 
 model Player {
-  id          String   @id @default(cuid())
-  sportMonkId String   @unique
-  name        String
-  image       String?
-  country     String?
-  teamId      String?
-  teamName    String?
-  role        String?
-  battingStyle String?
-  bowlingStyle String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  team        Team?    @relation(fields: [teamId], references: [sportMonkId])
-  matchPlayers MatchPlayer[]
-  statistics  PlayerStatistic[]
+  id                 String              @id @default(cuid())
+  sportMonkId        String              @unique
+  name               String
+  image              String?
+  country            String?
+  teamId             String?
+  teamName           String?
+  role               String?
+  battingStyle       String?
+  bowlingStyle       String?
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   fantasyTeamPlayers FantasyTeamPlayer[]
+  matchPlayers       MatchPlayer[]
+  team               Team?               @relation(fields: [teamId], references: [sportMonkId])
+  statistics         PlayerStatistic[]
 }
 
 model MatchPlayer {
-  id        String   @id @default(uuid())
-  matchId   String
-  playerId  String
-  teamId    String
-  points    Float    @default(0)
-  selected  Boolean  @default(false)
-  isCaptain Boolean  @default(false)
+  id            String  @id @default(uuid())
+  matchId       String
+  playerId      String
+  teamId        String
+  points        Float   @default(0)
+  selected      Boolean @default(false)
+  isCaptain     Boolean @default(false)
   isViceCaptain Boolean @default(false)
-  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  isSubstitute  Boolean @default(false)
+  match         Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player        Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, playerId])
 }
 
 model Contest {
-  id              String         @id @default(uuid())
-  matchId         String
-  name            String
-  entryFee        Float
-  totalSpots      Int
-  filledSpots     Int            @default(0)
-  prizePool       Float
-  totalPrize      Float
-  firstPrize      Float
+  id               String         @id @default(uuid())
+  matchId          String
+  name             String
+  entryFee         Float
+  totalSpots       Int
+  filledSpots      Int            @default(0)
+  prizePool        Float
+  totalPrize       Float
+  firstPrize       Float
   winnerPercentage Int
-  isGuaranteed    Boolean        @default(false)
-  winnerCount     Int
-  isActive        Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  match           Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  entries         ContestEntry[]
-  prizeBreakup    PrizeBreakup[]
+  isGuaranteed     Boolean        @default(false)
+  winnerCount      Int
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  match            Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  entries          ContestEntry[]
+  prizeBreakup     PrizeBreakup[]
 }
 
 model PrizeBreakup {
-  id          String  @id @default(uuid())
-  contestId   String
-  rank        Int
-  prize       Float
-  contest     Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  contestId String
+  rank      String  @default("1")
+  prize     Float
+  contest   Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
   @@unique([contestId, rank])
 }
 
 model FantasyTeam {
-  id          String   @id @default(cuid())
-  name        String
-  matchId     String
-  userId      String
-  captainId   String
-  viceCaptainId String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  match       Match    @relation(fields: [matchId], references: [id])
-  user        User     @relation(fields: [userId], references: [id])
-  players     FantasyTeamPlayer[]
+  id             String              @id @default(cuid())
+  name           String
+  matchId        String
+  userId         String
+  captainId      String
+  viceCaptainId  String
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   contestEntries ContestEntry[]
+  match          Match               @relation(fields: [matchId], references: [id])
+  user           User                @relation(fields: [userId], references: [id])
+  players        FantasyTeamPlayer[]
 }
 
 model FantasyTeamPlayer {
-  id            String       @id @default(cuid())
+  id            String      @id @default(cuid())
   fantasyTeamId String
   playerId      String
-  isCaptain     Boolean      @default(false)
-  isViceCaptain Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  fantasyTeam   FantasyTeam  @relation(fields: [fantasyTeamId], references: [id])
-  player        Player       @relation(fields: [playerId], references: [id])
+  isCaptain     Boolean     @default(false)
+  isViceCaptain Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  fantasyTeam   FantasyTeam @relation(fields: [fantasyTeamId], references: [id])
+  player        Player      @relation(fields: [playerId], references: [id])
 }
 
 model ContestEntry {
-  id          String      @id @default(uuid())
-  userId      String
-  contestId   String
+  id            String      @id @default(uuid())
+  userId        String
+  contestId     String
   fantasyTeamId String
-  rank        Int?
-  winAmount   Float?      @default(0)
-  points      Float?      @default(0)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contest     Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
+  rank          Int?
+  winAmount     Float?      @default(0)
+  points        Float?      @default(0)
+  contest       Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  fantasyTeam   FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, contestId, fantasyTeamId])
 }
 
 model PlayerStatistic {
-  id            String   @id @default(uuid())
-  matchId       String
-  playerId      String
-  runs          Int      @default(0)
-  balls         Int      @default(0)
-  fours         Int      @default(0)
-  sixes         Int      @default(0)
-  strikeRate    Float?
-  wickets       Int      @default(0)
-  overs         Float    @default(0)
-  maidens       Int      @default(0)
-  economy       Float?
-  runsConceded  Int      @default(0)
-  catches       Int      @default(0)
-  stumpings     Int      @default(0)
-  runOuts       Int      @default(0)
-  points        Float    @default(0)
-  match         Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  id           String @id @default(uuid())
+  matchId      String
+  playerId     String
+  runs         Int    @default(0)
+  balls        Int    @default(0)
+  fours        Int    @default(0)
+  sixes        Int    @default(0)
+  strikeRate   Float?
+  wickets      Int    @default(0)
+  overs        Float  @default(0)
+  maidens      Int    @default(0)
+  economy      Float?
+  runsConceded Int    @default(0)
+  catches      Int    @default(0)
+  stumpings    Int    @default(0)
+  runOuts      Int    @default(0)
+  points       Float  @default(0)
+  match        Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player       Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, playerId])
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
-  userId      String
-  amount      Float
-  type        String   // deposit, withdrawal, contest_join, contest_win
-  status      String   // pending, completed, failed
-  reference   String?
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String
+  amount    Float
+  type      String
+  status    String
+  reference String?
+  metadata  Json?    @default("{}")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Team {
@@ -246,7 +239,7 @@ model Setting {
   id          String   @id @default(cuid())
   key         String   @unique
   value       String
-  type        String   @default("string") // string, number, boolean, json
+  type        String   @default("string")
   category    String   @default("general")
   description String?
   isPublic    Boolean  @default(false)
@@ -254,59 +247,46 @@ model Setting {
   updatedAt   DateTime @updatedAt
 }
 
-// Ball-by-ball data
 model BallData {
-  id            String   @id @default(cuid())
-  matchId       String
-  match         Match    @relation(fields: [matchId], references: [id])
-  ballNumber    Int
-  over          Float
-  teamId        String?
-  batsmanId     String?
-  bowlerId      String?
-  runs          Int      @default(0)
-  isFour        Boolean  @default(false)
-  isSix         Boolean  @default(false)
-  isWicket      Boolean  @default(false)
-  wicketType    String?
-  outBatsmanId  String?
-  timestamp     DateTime @default(now())
-  inning        Int      @default(1)
+  id              String   @id @default(cuid())
+  matchId         String
+  ballNumber      Int
+  over            Float
+  teamId          String?
+  batsmanId       String?
+  bowlerId        String?
+  runs            Int      @default(0)
+  isFour          Boolean  @default(false)
+  isSix           Boolean  @default(false)
+  isWicket        Boolean  @default(false)
+  wicketType      String?
+  outBatsmanId    String?
+  timestamp       DateTime @default(now())
+  inning          Int      @default(1)
   sportMonkBallId String?
-  ballData      Json?    // Store the full raw data
-  
+  ballData        Json?
+  match           Match    @relation(fields: [matchId], references: [id])
+
   @@index([matchId])
   @@index([sportMonkBallId])
 }
 
-// Match summary data
 model MatchSummary {
-  id              String   @id @default(cuid())
-  matchId         String   @unique
-  match           Match    @relation(fields: [matchId], references: [id])
-  teamAScore      String?
-  teamBScore      String?
-  overs           String?
-  currentInnings  Int      @default(1)
-  status          String?
-  lastUpdated     DateTime @default(now())
-  rawData         Json?    // Store the full raw data
-  
+  id             String   @id @default(cuid())
+  matchId        String   @unique
+  teamAScore     String?
+  teamBScore     String?
+  overs          String?
+  currentInnings Int      @default(1)
+  status         String?
+  lastUpdated    DateTime @default(now())
+  rawData        Json?
+  match          Match    @relation(fields: [matchId], references: [id])
+
   @@index([matchId])
 }
 
-// Match lineup data
-model MatchLineup {
-  id                  String   @id @default(cuid())
-  matchId             String   @unique
-  match               Match    @relation(fields: [matchId], references: [id])
-  teamAPlayers        Json     // Array of team A player data
-  teamBPlayers        Json     // Array of team B player data
-  teamASubstitutes    Json?    // Array of team A substitute player data
-  teamBSubstitutes    Json?    // Array of team B substitute player data
-  tossWinner          String?  // Team ID that won the toss
-  isTossComplete      Boolean  @default(false)
-  lastUpdated         DateTime @default(now())
-  
-  @@index([matchId])
+enum UserRole {
+  USER
+  ADMIN
 }

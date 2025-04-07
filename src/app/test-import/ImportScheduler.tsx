@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import {
   Button,
@@ -67,33 +69,36 @@ export default function ImportScheduler() {
   const [result, setResult] = useState<SchedulerResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleRunScheduler = async () => {
+  const handleRunScheduler = () => {
     setLoading(true);
     setError(null);
     setResult(null);
 
-    try {
-      // Construct API URL with query parameters
-      const url = `/api/scheduler?task=${selectedTask}${
-        forceImport ? '&force=true' : ''
-      }`;
+    // Construct API URL with query parameters
+    const url = `/api/scheduler?task=${selectedTask}${
+      forceImport ? '&force=true' : ''
+    }`;
 
-      // Call the scheduler API
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (response.ok) {
-        setResult(data);
-      } else {
-        setError(data.error || 'An error occurred while running the scheduler');
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'An unexpected error occurred'
-      );
-    } finally {
-      setLoading(false);
-    }
+    // Call the scheduler API
+    fetch(url)
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.error) {
+          setError(
+            data.error || 'An error occurred while running the scheduler'
+          );
+        } else {
+          setResult(data);
+        }
+      })
+      .catch((err) => {
+        setError(
+          err instanceof Error ? err.message : 'An unexpected error occurred'
+        );
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const formatDate = (dateStr: string | undefined) => {

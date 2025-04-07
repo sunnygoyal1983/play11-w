@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Player {
   id: string;
@@ -15,11 +21,14 @@ interface Player {
   teamName: string;
   battingStyle: string;
   bowlingStyle: string;
-  credits: number;
   imageUrl: string;
 }
 
-export default function EditPlayer({ params }: { params: { playerId: string } }) {
+export default function EditPlayer({
+  params,
+}: {
+  params: { playerId: string };
+}) {
   const router = useRouter();
   const [player, setPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,10 +103,10 @@ export default function EditPlayer({ params }: { params: { playerId: string } })
               <SelectValue placeholder="Select role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="BATSMAN">Batsman</SelectItem>
-              <SelectItem value="BOWLER">Bowler</SelectItem>
-              <SelectItem value="ALL_ROUNDER">All Rounder</SelectItem>
-              <SelectItem value="WICKET_KEEPER">Wicket Keeper</SelectItem>
+              <SelectItem value="WK">Wicket Keeper</SelectItem>
+              <SelectItem value="BAT">Batsman</SelectItem>
+              <SelectItem value="AR">All Rounder</SelectItem>
+              <SelectItem value="BOWL">Bowler</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -124,7 +133,9 @@ export default function EditPlayer({ params }: { params: { playerId: string } })
           <Label htmlFor="battingStyle">Batting Style</Label>
           <Select
             value={player.battingStyle}
-            onValueChange={(value) => setPlayer({ ...player, battingStyle: value })}
+            onValueChange={(value) =>
+              setPlayer({ ...player, battingStyle: value })
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select batting style" />
@@ -140,7 +151,9 @@ export default function EditPlayer({ params }: { params: { playerId: string } })
           <Label htmlFor="bowlingStyle">Bowling Style</Label>
           <Select
             value={player.bowlingStyle}
-            onValueChange={(value) => setPlayer({ ...player, bowlingStyle: value })}
+            onValueChange={(value) =>
+              setPlayer({ ...player, bowlingStyle: value })
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select bowling style" />
@@ -151,16 +164,6 @@ export default function EditPlayer({ params }: { params: { playerId: string } })
               <SelectItem value="SPIN">Spin</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="credits">Credits</Label>
-          <Input
-            id="credits"
-            type="number"
-            value={player.credits}
-            onChange={(e) => setPlayer({ ...player, credits: Number(e.target.value) })}
-          />
         </div>
 
         <Button type="submit">Update Player</Button>

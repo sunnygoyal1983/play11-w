@@ -316,6 +316,27 @@ export const fetchMatchDetails = async (matchId: number) => {
             continue;
           }
 
+          // Get the actual team name from match data if it's not set
+          if (!teamName) {
+            if (
+              match.localteam?.id &&
+              teamId === match.localteam.id.toString()
+            ) {
+              teamName = match.localteam.name;
+              console.log(
+                `Using match localteam name for player ${player.id}: ${teamName}`
+              );
+            } else if (
+              match.visitorteam?.id &&
+              teamId === match.visitorteam.id.toString()
+            ) {
+              teamName = match.visitorteam.name;
+              console.log(
+                `Using match visitorteam name for player ${player.id}: ${teamName}`
+              );
+            }
+          }
+
           // Create or update the player in the database
           await prisma.player.upsert({
             where: { sportMonkId: player.id.toString() },
@@ -327,7 +348,7 @@ export const fetchMatchDetails = async (matchId: number) => {
               image: player.image_path || '',
               country: player.country_id?.toString() || '',
               teamId: teamId,
-              teamName: teamName || player.team_name || '',
+              teamName: teamName || player.team_name || 'Unknown Team',
               role: (player.position_id || player.position?.name || '')
                 .toString()
                 .toLowerCase(),
@@ -345,7 +366,7 @@ export const fetchMatchDetails = async (matchId: number) => {
               image: player.image_path || '',
               country: player.country_id?.toString() || '',
               teamId: teamId,
-              teamName: teamName || player.team_name || '',
+              teamName: teamName || player.team_name || 'Unknown Team',
               role: (player.position_id || player.position?.name || '')
                 .toString()
                 .toLowerCase(),
@@ -355,7 +376,36 @@ export const fetchMatchDetails = async (matchId: number) => {
             },
           });
 
+          // --- Add Detailed Logging ---
+          console.log(
+            `[MatchImport Debug] Player ${player.id} (${player.fullname}) Raw Data Snippet:`,
+            {
+              lineup: player.lineup, // Log the entire lineup object
+              substitute: player.substitute, // Log the direct substitute field
+              position: player.position, // Log the position object
+              // Add any other potentially relevant fields here
+            }
+          );
+          // --- End Detailed Logging ---
+
           // Now create or update the MatchPlayer record
+          console.log(
+            `[MatchImport] Processing player ${player.id} (${
+              player.fullname || 'Unknown'
+            }):`
+          );
+          console.log(`- Team ID: ${teamId}`);
+          console.log(`- Is Captain: ${player.lineup?.captain === true}`);
+          console.log(
+            `- Is Substitute (current check): ${
+              player.lineup?.substitution === true
+            }`
+          );
+          console.log(
+            `- Raw lineup data:`,
+            JSON.stringify(player.lineup, null, 2)
+          );
+
           await prisma.matchPlayer.upsert({
             where: {
               matchId_playerId: {
@@ -366,7 +416,9 @@ export const fetchMatchDetails = async (matchId: number) => {
             update: {
               teamId: teamId,
               selected: true,
-              // We could update captain/vice-captain status here if available
+              isSubstitute: player.lineup?.substitution === true,
+              isCaptain: player.lineup?.captain === true,
+              isViceCaptain: false, // Set if available in the API
             },
             create: {
               matchId: createdMatch.id,
@@ -374,8 +426,9 @@ export const fetchMatchDetails = async (matchId: number) => {
               teamId: teamId,
               selected: true,
               points: 0, // Initial points
-              isCaptain: false, // Default values, can be updated later
+              isCaptain: player.lineup?.captain === true,
               isViceCaptain: false,
+              isSubstitute: player.lineup?.substitution === true,
             },
           });
         } catch (error) {

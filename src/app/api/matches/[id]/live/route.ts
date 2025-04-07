@@ -68,10 +68,18 @@ export async function GET(
           console.log(
             `Data is stale (${dataAge}ms old), triggering background sync`
           );
-          // Don't await - let it happen in the background
-          syncLiveMatchData(match.id, sportMonkId).catch((err) => {
-            console.error('Background sync failed:', err);
-          });
+
+          // CRITICAL FIX: Don't sync if match is completed
+          if (match.status === 'completed') {
+            console.log(
+              `🛑 SKIPPED: Match ${match.name} (${match.id}) is completed, skipping background sync`
+            );
+          } else {
+            // Don't await - let it happen in the background
+            syncLiveMatchData(match.id, sportMonkId).catch((err) => {
+              console.error('Background sync failed:', err);
+            });
+          }
         }
 
         return NextResponse.json(
@@ -552,9 +560,16 @@ export async function GET(
 
       // IMPROVEMENT: After processing the data, sync it to our database in the background
       // This ensures future requests can use the database approach
-      syncLiveMatchData(match.id, sportMonkId).catch((err) => {
-        console.error('Background sync failed:', err);
-      });
+      // CRITICAL FIX: Don't sync if match is completed
+      if (match.status === 'completed') {
+        console.log(
+          `🛑 SKIPPED: Match ${match.name} (${match.id}) is completed, skipping background sync`
+        );
+      } else {
+        syncLiveMatchData(match.id, sportMonkId).catch((err) => {
+          console.error('Background sync failed:', err);
+        });
+      }
 
       // NEW SECTION: Create recent overs from ball data
       if (matchData.balls && matchData.balls.length > 0) {

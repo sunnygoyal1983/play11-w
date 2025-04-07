@@ -272,6 +272,181 @@ const MOCK_LIVE_MATCH_DATA = {
   ],
 };
 
+// Track the last fetch time for each match to avoid too frequent API calls
+const lastMatchFetchTimes: Record<string, number> = {};
+
+// Track the last status of matches to avoid unnecessary API calls when status hasn't changed
+const lastMatchStatuses: Record<string, string> = {};
+
+/**
+ * Check if a match is currently active (actually in play) by making a lightweight API call
+ * This helps avoid unnecessary expensive ball-by-ball data fetches when matches are inactive
+ */
+async function checkMatchActivityStatus(
+  matchId: string,
+  debug = false
+): Promise<{ isActive: boolean; status: string; throttle: boolean }> {
+  try {
+    if (debug) {
+      console.log(`[DEBUG] Checking activity status for match ${matchId}`);
+    }
+
+    // Check if we've fetched this match recently (within last 30 seconds)
+    const now = Date.now();
+    const lastFetch = lastMatchFetchTimes[matchId] || 0;
+    const timeSinceLastFetch = now - lastFetch;
+
+    // Throttle API calls if requested too frequently (30 second minimum gap)
+    if (timeSinceLastFetch < 30 * 1000) {
+      console.log(
+        `Match ${matchId} was checked ${Math.floor(
+          timeSinceLastFetch / 1000
+        )}s ago, throttling request`
+      );
+      return {
+        isActive: false,
+        status: lastMatchStatuses[matchId] || 'unknown',
+        throttle: true,
+      };
+    }
+
+    // Update last fetch time
+    lastMatchFetchTimes[matchId] = now;
+
+    // Get match details from our database first
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: { sportMonkId: true, status: true, name: true },
+    });
+
+    if (!match) {
+      console.error(`Match ${matchId} not found in database`);
+      return { isActive: false, status: 'not_found', throttle: false };
+    }
+
+    // If match is already marked as completed in our system, don't make API call
+    if (match.status === 'completed') {
+      console.log(
+        `⚠️ WARNING: Match ${match.name} (${matchId}) is already marked as completed in our system but is still being called`
+      );
+      console.log(
+        `This indicates the match should be removed from the tracking interval. Check live-match-scheduler.`
+      );
+      lastMatchStatuses[matchId] = 'completed';
+      return { isActive: false, status: 'completed', throttle: false };
+    }
+
+    if (debug) {
+      console.log(
+        `[DEBUG] Match ${match.name} (${matchId}) status in DB: ${match.status}`
+      );
+    }
+
+    // Make a lightweight API call to check match status
+    const sportMonkId = match.sportMonkId;
+    if (debug) {
+      console.log(
+        `[DEBUG] Making lightweight API call for match ${matchId} (SportMonk ID: ${sportMonkId})`
+      );
+    }
+
+    const apiUrl = `${
+      process.env.SPORTMONK_API_URL || 'https://cricket.sportmonks.com/api/v2.0'
+    }/fixtures/${sportMonkId}`;
+
+    const response = await axios.get(apiUrl, {
+      params: {
+        api_token: process.env.SPORTMONK_API_TOKEN,
+        include: 'stage', // Minimal include to keep the API call light
+      },
+      timeout: 10000, // 10 second timeout
+    });
+
+    if (response.status !== 200 || !response.data?.data) {
+      console.warn(`Failed to get activity status for match ${matchId}`);
+      return { isActive: true, status: 'unknown', throttle: false }; // Default to active if check fails
+    }
+
+    const matchData = response.data.data;
+    const matchStatus = matchData.status;
+    lastMatchStatuses[matchId] = matchStatus;
+
+    if (debug) {
+      console.log(
+        `[DEBUG] API returned status: ${matchStatus} for match ${matchId}`
+      );
+    }
+
+    // Determine if match is actually active based on status
+    const activeStatuses = [
+      '1st Innings',
+      '2nd Innings',
+      'In Play',
+      'Pending',
+      'Delayed',
+      'ing',
+    ];
+    const isActive = activeStatuses.some(
+      (status) =>
+        matchStatus && matchStatus.toLowerCase().includes(status.toLowerCase())
+    );
+
+    // Determine if match is completed
+    const completedStatuses = [
+      'Finished',
+      'Complete',
+      'Ended',
+      'Abandoned',
+      'Cancelled',
+    ];
+    const isCompleted = completedStatuses.some(
+      (status) =>
+        matchStatus && matchStatus.toLowerCase().includes(status.toLowerCase())
+    );
+
+    // Also check the note field which often contains match completion details
+    const matchNote = matchData.note || '';
+    const hasWinnerInNote = matchNote.toLowerCase().includes('won by');
+
+    // Log what we found
+    console.log(
+      `Match ${matchId} (${
+        match.name
+      }) status from API: ${matchStatus}, active: ${isActive}, completed: ${
+        isCompleted || hasWinnerInNote
+      }`
+    );
+
+    // If match shows as completed but our DB doesn't reflect that, update match status
+    if ((isCompleted || hasWinnerInNote) && match.status !== 'completed') {
+      console.log(
+        `Detected match ${matchId} completion from API status check. Updating in database...`
+      );
+
+      // Update match status in our database
+      await prisma.match.update({
+        where: { id: matchId },
+        data: {
+          status: 'completed',
+          endTime: new Date(),
+          result: matchNote || `Match completed with status: ${matchStatus}`,
+        },
+      });
+
+      // Return false for activity to stop further API calls
+      return { isActive: false, status: 'completed', throttle: false };
+    }
+
+    return { isActive, status: matchStatus, throttle: false };
+  } catch (error) {
+    console.error(
+      `Error checking match activity status for ${matchId}:`,
+      error
+    );
+    return { isActive: true, status: 'error', throttle: false }; // Default to active if error occurs
+  }
+}
+
 /**
  * Fetch live match details from SportMonk API
  */
@@ -297,19 +472,44 @@ export async function fetchLiveMatchDetails(matchId: string) {
     if (response.data && response.data.data) {
       const matchData = response.data.data;
       console.log('SportMonks API response structure:');
-      console.log('- Has balls array:', !!matchData.balls);
-      if (matchData.balls) {
-        console.log('- Balls array type:', typeof matchData.balls);
+      console.log('- Response status:', response.status);
+      console.log('- Match ID:', matchData.id);
+      console.log('- Match status:', matchData.status);
+      console.log('- Has lineup data:', !!matchData.lineup);
+      console.log('- Lineup data type:', typeof matchData.lineup);
+
+      if (matchData.lineup) {
+        console.log('- Lineup array type:', typeof matchData.lineup);
         console.log(
-          '- Balls array length:',
-          Array.isArray(matchData.balls)
-            ? matchData.balls.length
+          '- Lineup array length:',
+          Array.isArray(matchData.lineup)
+            ? matchData.lineup.length
             : 'not an array'
         );
-        if (Array.isArray(matchData.balls) && matchData.balls.length > 0) {
+        if (Array.isArray(matchData.lineup) && matchData.lineup.length > 0) {
           console.log(
-            '- First 2 ball elements:',
-            JSON.stringify(matchData.balls.slice(0, 2))
+            '- First lineup element keys:',
+            Object.keys(matchData.lineup[0])
+          );
+          console.log(
+            '- Team ID in first player:',
+            matchData.lineup[0].lineup.team_id
+          );
+          console.log(
+            '- First player has lineup prop:',
+            !!matchData.lineup[0].lineup
+          );
+
+          if (matchData.lineup[0].lineup) {
+            console.log(
+              '- First player lineup property keys:',
+              Object.keys(matchData.lineup[0].lineup)
+            );
+          }
+
+          console.log(
+            '- First 2 lineup elements:',
+            JSON.stringify(matchData.lineup.slice(0, 2), null, 2)
           );
         }
       }
@@ -354,8 +554,8 @@ export async function fetchLiveMatchDetails(matchId: string) {
         // Extract runs data
         runs: rawData.runs || [],
 
-        // Add lineup data
-        lineup: rawData.lineup || [],
+        // Add lineup data - ensure it's an array
+        lineup: Array.isArray(rawData.lineup) ? rawData.lineup : [],
 
         // Add venue information
         venue: rawData.venue?.data,
@@ -670,7 +870,83 @@ export async function updateLiveMatchPlayerStats(
   matchId: string
 ): Promise<boolean> {
   try {
-    console.log(`Updating live match player stats for match ${matchId}...`);
+    // CRITICAL FIX: First, check the match status directly from the database
+    // before making any API calls or checking activity status
+    const matchStatus = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: {
+        status: true,
+        name: true,
+      },
+    });
+
+    // If match is not found or already completed, stop processing immediately
+    if (!matchStatus) {
+      console.error(`Match ${matchId} not found in database, cannot update`);
+      return false;
+    }
+
+    if (matchStatus.status === 'completed') {
+      console.log(
+        `🛑 STOPPED: Match ${matchStatus.name} (${matchId}) is already completed in database, skipping update`
+      );
+
+      // Clean up any tracking for this match to prevent further calls
+      try {
+        const {
+          clearTrackingForCompletedMatches,
+        } = require('./live-match-scheduler');
+        await clearTrackingForCompletedMatches();
+      } catch (cleanupError) {
+        console.error(
+          'Failed to clear tracking for completed match:',
+          cleanupError
+        );
+      }
+
+      return false;
+    }
+
+    console.log(`Updating player statistics for match ${matchId}`);
+
+    // First check if the match is actually active before making the expensive ball-by-ball API call
+    const activityStatus = await checkMatchActivityStatus(matchId);
+
+    // If we're throttling this request, return early
+    if (activityStatus.throttle) {
+      console.log(`Skipping update for match ${matchId} due to rate limiting`);
+      return false;
+    }
+
+    // If match is completed, trigger finalization and stop further updates
+    if (activityStatus.status === 'completed') {
+      console.log(
+        `Match ${matchId} is completed, no further live updates needed`
+      );
+
+      // Attempt to trigger contest finalization
+      try {
+        const {
+          triggerContestFinalization,
+        } = require('./live-match-scheduler');
+        await triggerContestFinalization(matchId);
+      } catch (error) {
+        console.error(
+          `Error triggering contest finalization for completed match ${matchId}:`,
+          error
+        );
+      }
+
+      return false;
+    }
+
+    // If match isn't active, skip the expensive API call
+    if (!activityStatus.isActive) {
+      console.log(
+        `Match ${matchId} isn't currently active (status: ${activityStatus.status}), skipping detailed data fetch`
+      );
+      return false;
+    }
 
     // Fetch match data from SportMonk API
     const matchData = await fetchLiveMatchDetails(matchId);

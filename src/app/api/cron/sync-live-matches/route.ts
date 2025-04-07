@@ -17,12 +17,17 @@ export async function GET() {
           { status: 'live' },
           { status: 'active' },
           { status: 'in_progress' },
-          { status: 'UPCOMING' }, // Include upcoming matches for pre-game data
+          { status: 'upcoming' }, // Include upcoming matches for pre-game data
         ],
+        // CRITICAL FIX: Explicitly exclude completed matches
+        status: {
+          not: 'completed',
+        },
       },
       select: {
         id: true,
         sportMonkId: true,
+        name: true, // Added for better logging
       },
     });
 

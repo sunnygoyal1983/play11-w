@@ -1,16 +1,21 @@
 import { PrismaClient } from '@prisma/client';
 
-// Avoid multiple instances during hot reloading in development
+const prismaClientSingleton = () => {
+  return new PrismaClient({
+    log: ['query', 'error', 'warn'],
+    transactionOptions: {
+      maxWait: 10000, // Maximum time to wait for a transaction
+      timeout: 30000, // Maximum time a transaction can run
+    },
+  });
+};
+
 declare global {
-  var prisma: PrismaClient | undefined;
+  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
 }
 
-// Export the Prisma client instance
-export const prisma = global.prisma || new PrismaClient();
+const prisma = globalThis.prisma ?? prismaClientSingleton();
 
-// Prevent multiple instances during hot reload
-if (process.env.NODE_ENV !== 'production') {
-  global.prisma = prisma;
-}
+export { prisma };
 
-export default prisma;
+if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;

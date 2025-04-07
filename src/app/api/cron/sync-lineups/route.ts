@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { refreshLineupFromApi } from '@/services/lineup-service';
+import { fetchMatchDetails } from '@/services/sportmonk/matches';
 
 /**
- * Cron job to sync lineups for all upcoming and live matches
- * This can be called every 5-10 minutes to ensure we have the latest lineup data
+ * Cron job to sync player data for all upcoming and live matches
+ * This can be called every 5-10 minutes to ensure we have the latest player data
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('Starting automated sync of match lineups...');
+    console.log('Starting automated sync of match players...');
 
     // Check for authorization if needed
     const cronSecretHeader = request.headers.get('x-cron-secret');
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Find all upcoming and live matches that might have lineup data
+    // Find all upcoming and live matches that might have player data
     const matches = await prisma.match.findMany({
       where: {
         OR: [
@@ -46,59 +46,56 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log(`Found ${matches.length} matches to check for lineup data`);
+    console.log(`Found ${matches.length} matches to check for player data`);
 
     // Process each match
     const results = [];
     for (const match of matches) {
       try {
-        // Check if we already have lineup data for this match
-        const existingLineup = await prisma.matchLineup.findUnique({
+        // Get current player count
+        const beforeCount = await prisma.matchPlayer.count({
           where: { matchId: match.id },
         });
 
-        // Skip if we already have lineup data and the match is not live
-        // For live matches, we still want to refresh occasionally
-        if (
-          existingLineup &&
-          existingLineup.isTossComplete &&
-          match.status !== 'live'
-        ) {
-          results.push({
-            matchId: match.id,
-            name: match.name,
-            status: 'skipped',
-            reason: 'Lineup already exists',
-          });
-          continue;
-        }
-
         console.log(
-          `Syncing lineup data for match ${match.id} (${match.name})`
+          `Syncing player data for match ${match.id} (${match.name})`
         );
 
-        // Force refresh lineup data from the API
-        const result = await refreshLineupFromApi(match.id);
+        // Fetch match details which will update MatchPlayer records
+        if (match.sportMonkId) {
+          await fetchMatchDetails(parseInt(match.sportMonkId));
 
-        if (result.success) {
+          // Get updated player count
+          const afterCount = await prisma.matchPlayer.count({
+            where: { matchId: match.id },
+          });
+
+          // Get substitute count
+          const substituteCount = await prisma.matchPlayer.count({
+            where: {
+              matchId: match.id,
+              isSubstitute: true,
+            },
+          });
+
           results.push({
             matchId: match.id,
             name: match.name,
             status: 'success',
-            tossComplete: result.tossComplete,
-            teamAPlayers: result.teamA?.length || 0,
-            teamBPlayers: result.teamB?.length || 0,
+            playersBefore: beforeCount,
+            playersAfter: afterCount,
+            substitutes: substituteCount,
           });
         } else {
           results.push({
             matchId: match.id,
             name: match.name,
-            status: 'failed',
-            reason: result.message,
+            status: 'skipped',
+            reason: 'No SportMonk ID',
           });
         }
       } catch (error) {
-        console.error(`Error syncing lineup for match ${match.id}:`, error);
+        console.error(`Error syncing players for match ${match.id}:`, error);
         results.push({
           matchId: match.id,
           name: match.name,
@@ -114,15 +111,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: `Checked lineups for ${matches.length} matches`,
+        message: `Checked player data for ${matches.length} matches`,
         results,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error in cron job for syncing lineups:', error);
+    console.error('Error in cron job for syncing players:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to sync lineups' },
+      { success: false, error: 'Failed to sync players' },
       { status: 500 }
     );
   }

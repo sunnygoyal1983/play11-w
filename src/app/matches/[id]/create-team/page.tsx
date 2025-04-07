@@ -149,14 +149,11 @@ export default function CreateTeam() {
         return;
       }
 
-      // Fetch match details and players in parallel
+      // Fetch match details
       console.log('Fetching match data for ID:', matchId);
       setLoading(true);
 
-      const [matchResponse, lineupResponse] = await Promise.all([
-        fetch(`/api/matches/${matchId}`),
-        fetch(`/api/matches/${matchId}/lineup`),
-      ]);
+      const matchResponse = await fetch(`/api/matches/${matchId}`);
 
       if (!matchResponse.ok) {
         throw new Error(
@@ -168,23 +165,7 @@ export default function CreateTeam() {
       setMatch(matchData.data);
       console.log('Match data loaded:', matchData.data);
 
-      // Check if lineup data was returned (available after toss)
-      const hasLineup = lineupResponse.ok;
-      let lineupData = null;
-
-      if (hasLineup) {
-        lineupData = await lineupResponse.json();
-        console.log('Lineup data available:', lineupData);
-        if (lineupData.success && lineupData.tossComplete) {
-          setLineupAvailable(true);
-          setOfficialLineups({
-            teamA: lineupData.teamA || [],
-            teamB: lineupData.teamB || [],
-            teamASubstitutes: lineupData.teamASubstitutes || [],
-            teamBSubstitutes: lineupData.teamBSubstitutes || [],
-          });
-        }
-      }
+      // Removed lineup fetching since MatchLineup table is no longer used
 
       // Now directly fetch players from the API without complex processing
       console.log('Directly fetching players from match players API...');
@@ -593,10 +574,6 @@ export default function CreateTeam() {
   // Calculate team statistics
   const teamStats = {
     totalPlayers: selectedPlayers.length,
-    totalCredits: selectedPlayers.reduce(
-      (sum, player) => sum + (player.credits || 9),
-      0
-    ),
     teamACounts: selectedPlayers.filter((p) => p.teamId === match?.teamAId)
       .length,
     teamBCounts: selectedPlayers.filter((p) => p.teamId === match?.teamBId)
@@ -607,6 +584,10 @@ export default function CreateTeam() {
       AR: selectedPlayers.filter((p) => p.role === 'AR').length,
       BOWL: selectedPlayers.filter((p) => p.role === 'BOWL').length,
     },
+    totalCredits: selectedPlayers.reduce(
+      (sum, player) => sum + (player.credits || 0),
+      0
+    ),
   };
 
   // Check if player can be selected based on team constraints
@@ -647,11 +628,6 @@ export default function CreateTeam() {
       player.role === 'BOWL' &&
       teamStats.roleCounts.BOWL >= CONSTRAINTS.MAX_BOWL
     ) {
-      return false;
-    }
-
-    // Check credits
-    if (teamStats.totalCredits + player.credits > CONSTRAINTS.CREDITS) {
       return false;
     }
 
@@ -980,53 +956,25 @@ export default function CreateTeam() {
 
   // Render player card
   const renderPlayerCard = (player: any) => (
-    <div
-      key={player.id}
-      className={`border rounded-lg overflow-hidden mb-3 ${
-        player.selected ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200'
-      }`}
-    >
-      <div className="p-3 flex justify-between items-center">
-        <div className="flex items-center flex-1">
-          <div className="mr-3">
-            {player.image ? (
-              <Image
-                src={player.image}
-                alt={player.name}
-                width={40}
-                height={40}
-                className="rounded-full bg-gray-200"
-                onError={(e) => {
-                  // Fallback for broken images
-                  const target = e.target as HTMLImageElement;
-                  target.onerror = null;
-                  target.src = '/images/player-placeholder.png';
-                }}
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
-                {player.name.charAt(0)}
-              </div>
-            )}
+    <div className="bg-white rounded-lg shadow-sm p-3 mb-2">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <div className="font-medium flex items-center">
+            {player.name}
+            <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100">
+              {player.teamId === match?.teamAId
+                ? match?.teamAName
+                : match?.teamBName}
+            </span>
           </div>
-          <div className="flex-1">
-            <div className="font-medium flex items-center">
-              {player.name}
-              <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100">
-                {player.teamId === match?.teamAId
-                  ? match?.teamAName
-                  : match?.teamBName}
-              </span>
-            </div>
-            <div className="text-xs text-gray-500">
-              {player.points || 0} pts
-            </div>
+          <div className="text-xs text-gray-500">
+            {ROLES[player.role as keyof typeof ROLES]} | {player.points || 0}{' '}
+            pts
           </div>
-          <div className="text-right mr-3">
-            <div className="font-semibold">{player.credits} Cr</div>
-            <div className="text-xs text-indigo-600">
-              {player.selected ? 'Selected' : ''}
-            </div>
+        </div>
+        <div className="text-right mr-3">
+          <div className="text-xs text-indigo-600">
+            {player.selected ? 'Selected' : ''}
           </div>
         </div>
         <button
@@ -1685,9 +1633,6 @@ export default function CreateTeam() {
                                   </div>
                                 </div>
                                 <div className="text-right mr-3">
-                                  <div className="font-semibold">
-                                    {player.credits} Cr
-                                  </div>
                                   <div className="text-xs text-indigo-600">
                                     {player.selected ? 'Selected' : ''}
                                   </div>
@@ -1775,9 +1720,6 @@ export default function CreateTeam() {
                                   </div>
                                 </div>
                                 <div className="text-right mr-3">
-                                  <div className="font-semibold">
-                                    {player.credits} Cr
-                                  </div>
                                   <div className="text-xs text-indigo-600">
                                     {player.selected ? 'Selected' : ''}
                                   </div>

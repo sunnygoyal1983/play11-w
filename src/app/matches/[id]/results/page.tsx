@@ -43,6 +43,7 @@ interface PlayerStatistic {
   catches: number;
   stumpings: number;
   runOuts: number;
+  isSubstitute: boolean;
 }
 
 interface UserTeam {
@@ -83,6 +84,68 @@ export default function MatchResultsPage() {
   const [userTeams, setUserTeams] = useState<UserTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<keyof PlayerStatistic>('points');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Function to handle table header clicks for sorting
+  const handleSortClick = (field: keyof PlayerStatistic) => {
+    if (sortField === field) {
+      // Toggle direction if clicking the same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new sort field and default direction based on field type
+      setSortField(field);
+      // Default to descending for most stats (higher is better)
+      setSortDirection('desc');
+    }
+  };
+
+  // Function to sort playerStats based on current sortField and sortDirection
+  const getSortedPlayerStats = () => {
+    return [...playerStats].sort((a, b) => {
+      if (a[sortField] === b[sortField]) return 0;
+
+      // Handle null values
+      if (a[sortField] === null) return sortDirection === 'asc' ? -1 : 1;
+      if (b[sortField] === null) return sortDirection === 'asc' ? 1 : -1;
+
+      // Sort by field value and handle possible undefined with type assertion
+      const aValue = a[sortField] as number | string;
+      const bValue = b[sortField] as number | string;
+
+      if (aValue < bValue) {
+        return sortDirection === 'asc' ? -1 : 1;
+      } else {
+        return sortDirection === 'asc' ? 1 : -1;
+      }
+    });
+  };
+
+  // Get sorted player stats
+  const sortedPlayerStats = getSortedPlayerStats();
+
+  // Sort indicator component
+  const SortIndicator = ({ field }: { field: keyof PlayerStatistic }) => {
+    if (sortField !== field) return null;
+
+    return (
+      <span className="ml-1 inline-block text-indigo-600">
+        {sortDirection === 'asc' ? '↑' : '↓'}
+      </span>
+    );
+  };
+
+  // Helper function to get header class based on sort field
+  const getHeaderClass = (field: keyof PlayerStatistic) => {
+    const baseClass =
+      'px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100';
+    const position = ['playerName', 'teamName'].includes(field)
+      ? 'text-left'
+      : 'text-right';
+    const active = sortField === field ? 'bg-gray-100 text-indigo-700' : '';
+
+    return `${baseClass} ${position} ${active}`;
+  };
 
   useEffect(() => {
     const fetchMatchDetails = async () => {
@@ -429,87 +492,120 @@ export default function MatchResultsPage() {
                       <tr>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('playerName')}
+                          className={getHeaderClass('playerName') + ' w-1/4'}
                         >
                           Player
+                          <SortIndicator field="playerName" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('teamName')}
+                          className={getHeaderClass('teamName')}
                         >
                           Team
+                          <SortIndicator field="teamName" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('runs')}
+                          className={getHeaderClass('runs')}
                         >
                           Runs
+                          <SortIndicator field="runs" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('balls')}
+                          className={getHeaderClass('balls')}
                         >
                           Balls
+                          <SortIndicator field="balls" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('fours')}
+                          className={getHeaderClass('fours')}
                         >
-                          4s/6s
+                          4s
+                          <SortIndicator field="fours" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('sixes')}
+                          className={getHeaderClass('sixes')}
+                        >
+                          6s
+                          <SortIndicator field="sixes" />
+                        </th>
+                        <th
+                          scope="col"
+                          onClick={() => handleSortClick('strikeRate')}
+                          className={getHeaderClass('strikeRate')}
                         >
                           SR
+                          <SortIndicator field="strikeRate" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('wickets')}
+                          className={getHeaderClass('wickets')}
                         >
                           Wickets
+                          <SortIndicator field="wickets" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('overs')}
+                          className={getHeaderClass('overs')}
                         >
                           Overs
+                          <SortIndicator field="overs" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('economy')}
+                          className={getHeaderClass('economy')}
                         >
                           Economy
+                          <SortIndicator field="economy" />
                         </th>
                         <th
                           scope="col"
-                          className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          onClick={() => handleSortClick('points')}
+                          className={getHeaderClass('points')}
                         >
                           Points
+                          <SortIndicator field="points" />
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {playerStats.map((player) => (
+                      {sortedPlayerStats.map((player) => (
                         <tr key={player.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 relative">
+                              <div className="flex-shrink-0 h-12 w-12 relative">
                                 <Image
                                   src={
                                     player.playerImage ||
                                     getDefaultPlayerImage(player.playerName)
                                   }
                                   alt={player.playerName}
-                                  width={40}
-                                  height={40}
+                                  width={48}
+                                  height={48}
                                   className="rounded-full"
                                 />
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {player.playerName}
+                                <div className="text-base font-semibold text-gray-900">
+                                  {player.playerName || 'Unknown Player'}
                                 </div>
+                                {player.isSubstitute && (
+                                  <div className="text-xs text-gray-500 italic">
+                                    (Substitute)
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -523,7 +619,10 @@ export default function MatchResultsPage() {
                             {player.balls}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {player.fours}/{player.sixes}
+                            {player.fours}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            {player.sixes}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             {player.strikeRate?.toFixed(2) || '-'}

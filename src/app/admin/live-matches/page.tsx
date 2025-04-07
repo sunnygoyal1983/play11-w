@@ -32,6 +32,9 @@ export default function LiveMatchesPage() {
   >({});
   const [checkingMatches, setCheckingMatches] = useState(false);
   const [syncingLineups, setSyncingLineups] = useState(false);
+  const [checkingCompletedMatches, setCheckingCompletedMatches] =
+    useState(false);
+  const [completedCheckResult, setCompletedCheckResult] = useState<any>(null);
 
   // Check if user is admin, redirect if not
   useEffect(() => {
@@ -224,7 +227,7 @@ export default function LiveMatchesPage() {
   };
 
   // Function to manually sync lineups
-  const syncLineups = async () => {
+  const syncAllLineups = async () => {
     try {
       setSyncingLineups(true);
       const response = await fetch('/api/cron/sync-lineups');
@@ -242,6 +245,35 @@ export default function LiveMatchesPage() {
       toast.error('Error syncing lineups');
     } finally {
       setSyncingLineups(false);
+    }
+  };
+
+  // Check for completed matches that need finalization
+  const checkCompletedMatches = async () => {
+    try {
+      setCheckingCompletedMatches(true);
+      const response = await fetch('/api/cron/check-completed-matches', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCompletedCheckResult(data);
+        if (data.results?.matchesFinalized > 0) {
+          toast.success(
+            `Successfully finalized ${data.results.matchesFinalized} matches`
+          );
+        } else {
+          toast.success('All completed matches are already finalized');
+        }
+      } else {
+        toast.error('Failed to check completed matches');
+      }
+    } catch (error) {
+      console.error('Error checking completed matches:', error);
+      toast.error('Error checking completed matches');
+    } finally {
+      setCheckingCompletedMatches(false);
     }
   };
 
@@ -273,7 +305,7 @@ export default function LiveMatchesPage() {
             )}
 
             <button
-              onClick={syncLineups}
+              onClick={syncAllLineups}
               disabled={syncingLineups}
               className="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 focus:outline-none"
             >
@@ -298,6 +330,64 @@ export default function LiveMatchesPage() {
               Check Upcoming Matches
             </button>
           </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 mb-8">
+          <button
+            onClick={startScheduler}
+            disabled={schedulerStatus.loading || schedulerStatus.running}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded flex items-center disabled:bg-indigo-300"
+          >
+            {schedulerStatus.loading ? (
+              <FaSpinner className="animate-spin mr-2" />
+            ) : schedulerStatus.running ? (
+              <FaCheckCircle className="mr-2" />
+            ) : (
+              <FaPlay className="mr-2" />
+            )}
+            {schedulerStatus.running
+              ? 'Live Scoring Running'
+              : 'Start Live Scoring'}
+          </button>
+
+          <button
+            onClick={checkUpcomingMatches}
+            disabled={checkingMatches}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center disabled:bg-blue-300"
+          >
+            {checkingMatches ? (
+              <FaSpinner className="animate-spin mr-2" />
+            ) : (
+              <FaSync className="mr-2" />
+            )}
+            Check Upcoming Matches
+          </button>
+
+          <button
+            onClick={syncAllLineups}
+            disabled={syncingLineups}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center disabled:bg-green-300"
+          >
+            {syncingLineups ? (
+              <FaSpinner className="animate-spin mr-2" />
+            ) : (
+              <FaUsers className="mr-2" />
+            )}
+            Sync All Lineups
+          </button>
+
+          <button
+            onClick={checkCompletedMatches}
+            disabled={checkingCompletedMatches}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded flex items-center disabled:bg-purple-300"
+          >
+            {checkingCompletedMatches ? (
+              <FaSpinner className="animate-spin mr-2" />
+            ) : (
+              <FaCheckCircle className="mr-2" />
+            )}
+            Check Completed Matches
+          </button>
         </div>
 
         {loading ? (

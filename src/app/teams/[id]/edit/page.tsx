@@ -233,38 +233,12 @@ export default function EditTeamPage() {
     if (!team?.matchId) return;
 
     try {
-      console.log(`Manually fetching lineup data for match ${team.matchId}`);
-      // Add refresh=true to force a refresh from the API
-      const lineupResponse = await fetch(
-        `/api/matches/${team.matchId}/lineup?refresh=true`
+      console.log(
+        `Lineup data is no longer available as MatchLineup table has been removed`
       );
-
-      if (lineupResponse.ok) {
-        const lineupData = await lineupResponse.json();
-        console.log('Lineup data response:', lineupData);
-
-        if (lineupData.success && lineupData.tossComplete) {
-          setLineupAvailable(true);
-          setOfficialLineups({
-            teamA: lineupData.teamA || [],
-            teamB: lineupData.teamB || [],
-          });
-          console.log(
-            'Updated lineup with refreshed data from the database/API'
-          );
-        } else {
-          // Handle case where lineup is not available
-          setLineupAvailable(false);
-          // Still show the section, but with a message
-          setShowLineupInfo(true);
-        }
-      } else {
-        console.error(
-          'Failed to fetch lineup data:',
-          lineupResponse.statusText
-        );
-        setLineupAvailable(false);
-      }
+      // Indicate that lineup is not available
+      setLineupAvailable(false);
+      setShowLineupInfo(true);
     } catch (error) {
       console.error('Error fetching lineup data:', error);
       setLineupAvailable(false);

@@ -20,6 +20,7 @@ type Player = {
   selected: boolean;
   isCaptain: boolean;
   isViceCaptain: boolean;
+  isSubstitute: boolean;
   player: {
     id: string;
     name: string;
@@ -537,8 +538,13 @@ export default function MatchPlayersPage() {
                             Selected
                           </span>
                         )}
-                        {player.isCaptain && (
+                        {player.isSubstitute && (
                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            Substitute
+                          </span>
+                        )}
+                        {player.isCaptain && (
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
                             Captain
                           </span>
                         )}

@@ -18,6 +18,8 @@ export async function GET(
         teamAName: true,
         teamBName: true,
         status: true,
+        teamAId: true,
+        teamBId: true,
       },
     });
 
@@ -31,6 +33,22 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    // Fetch match players to get accurate team info and substitute status
+    const matchPlayers = await prisma.matchPlayer.findMany({
+      where: { matchId },
+      include: {
+        player: {
+          select: {
+            teamName: true,
+          },
+        },
+      },
+    });
+
+    console.log(
+      `Found ${matchPlayers.length} match players for match ${matchId}`
+    );
 
     // Fetch player statistics with player and team data
     const playerStatistics = await prisma.playerStatistic.findMany({
@@ -102,9 +120,50 @@ export async function GET(
     console.log(
       `Found ${formattedStats.length} player statistics for match ${matchId}`
     );
+
+    // Process players and their stats
+    const processedPlayers = formattedStats.map((player) => {
+      // Find related match player data for additional info
+      const matchPlayer = matchPlayers.find(
+        (mp) => mp.playerId === player.playerId
+      );
+
+      // Get team data from match
+      const teamName =
+        matchPlayer?.player?.teamName ||
+        (matchPlayer?.teamId === match.teamAId
+          ? match.teamAName
+          : matchPlayer?.teamId === match.teamBId
+          ? match.teamBName
+          : player.teamName || 'Unknown Team');
+
+      return {
+        id: player.playerId,
+        name: player.playerName,
+        isSubstitute: matchPlayer?.isSubstitute || false,
+        teamName,
+        playerImage: player.playerImage,
+        role: player.role,
+        points: player.points,
+        runs: player.runs,
+        balls: player.balls,
+        fours: player.fours,
+        sixes: player.sixes,
+        strikeRate: player.strikeRate,
+        wickets: player.wickets,
+        overs: player.overs,
+        maidens: player.maidens,
+        economy: player.economy,
+        runsConceded: player.runsConceded,
+        catches: player.catches,
+        stumpings: player.stumpings,
+        runOuts: player.runOuts,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: formattedStats,
+      data: processedPlayers,
       matchDetails: {
         id: match.id,
         name: match.name,

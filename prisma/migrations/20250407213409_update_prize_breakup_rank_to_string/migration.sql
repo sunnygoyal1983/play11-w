@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "PrizeBreakup" ALTER COLUMN "rank" SET DEFAULT '1',
+ALTER COLUMN "rank" SET DATA TYPE TEXT;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { syncLiveMatchData } from '@/services/ball-data-service';
+import { initWalletFixScheduler } from '@/lib/init-wallet-fix';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -23,6 +24,7 @@ export async function GET(
       select: {
         id: true,
         sportMonkId: true,
+        status: true,
       },
     });
 
@@ -39,8 +41,16 @@ export async function GET(
     console.log(`Using SportMonk ID: ${sportMonkId} for match ${match.id}`);
 
     // Sync data from SportMonks to our database
+    if (match.status === 'completed') {
+      console.log(`🛑 Match is already completed in database, skipping sync`);
+      return {
+        status: 'completed',
+        message: 'Match already completed, sync skipped',
+        matchId: match.id,
+      };
+    }
     const result = await syncLiveMatchData(match.id, sportMonkId, forceSync);
-
+    initWalletFixScheduler();
     if (!result) {
       return NextResponse.json(
         { success: false, error: 'Failed to sync match data' },
