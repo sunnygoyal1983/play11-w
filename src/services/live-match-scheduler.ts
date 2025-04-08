@@ -414,11 +414,37 @@ async function finalizeMatchContests(matchId: string) {
 
         // Process winners and create transactions
         for (const entry of rankedEntries) {
-          const prizeForRank = prizeBreakup.find((p) => p.rank === entry.rank);
+          // Find matching prize - check both direct matches and ranges
+          const prizeForRank = prizeBreakup.find((p) => {
+            // Handle direct rank matches
+            if (p.rank === entry.rank.toString()) {
+              return true;
+            }
+
+            // Handle rank ranges like "101-200"
+            if (typeof p.rank === 'string' && p.rank.includes('-')) {
+              const [start, end] = p.rank.split('-').map(Number);
+              return entry.rank >= start && entry.rank <= end;
+            }
+
+            return false;
+          });
+
           if (prizeForRank) {
             const winAmount = prizeForRank.prize;
+
+            // Log for admin users
+            if (entry.user?.role === 'ADMIN') {
+              console.log(
+                `Found admin user at rank ${entry.rank}: ${entry.user.name}`
+              );
+              console.log(`Prize amount for admin: ${winAmount}`);
+            }
+
             // For each winner, process in its own transaction with retries
             await processContestWinner(entry, contest, winAmount);
+          } else {
+            console.log(`No prize found for rank ${entry.rank}`);
           }
         }
 
@@ -447,6 +473,14 @@ async function processContestWinner(
   const maxRetries = 3;
 
   try {
+    // Add special logging for admin users
+    const isAdminUser = entry.user?.role === 'ADMIN';
+    if (isAdminUser) {
+      console.log(
+        `Processing win for ADMIN user ${entry.userId}, contest ${contest.id}, rank ${entry.rank}, amount ${winAmount}`
+      );
+    }
+
     // Check if this entry already has a transaction (to prevent duplicates)
     const existingTransaction = await prisma.transaction.findFirst({
       where: {

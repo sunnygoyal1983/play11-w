@@ -341,9 +341,33 @@ export async function POST(
     // Process winners and create transactions
     const processedWinners = [];
     for (const entry of rankedEntries) {
-      const prizeForRank = prizeBreakup.find((p) => p.rank === entry.rank);
+      // Find matching prize - check both direct matches and ranges
+      const prizeForRank = prizeBreakup.find((p) => {
+        // For direct rank matches
+        if (p.rank === entry.rank.toString()) {
+          return true;
+        }
+
+        // For rank ranges like "101-200"
+        if (p.rank.includes('-')) {
+          const [start, end] = p.rank.split('-').map(Number);
+          return entry.rank >= start && entry.rank <= end;
+        }
+
+        return false;
+      });
+
       if (prizeForRank) {
         const winAmount = prizeForRank.prize;
+
+        // Log more details for admin users
+        if (entry.user?.role === 'ADMIN') {
+          console.log(
+            `Admin user found at rank ${entry.rank}: ${entry.user.name} (${entry.user.email})`
+          );
+          console.log(`Prize amount: ${winAmount}`);
+        }
+
         // For each winner, process in its own transaction with retries
         await processContestWinner(entry, contest, winAmount);
         processedWinners.push({
@@ -351,7 +375,10 @@ export async function POST(
           userName: entry.user.name,
           rank: entry.rank,
           amount: winAmount,
+          isAdmin: entry.user?.role === 'ADMIN',
         });
+      } else {
+        console.log(`No prize found for rank ${entry.rank}`);
       }
     }
 

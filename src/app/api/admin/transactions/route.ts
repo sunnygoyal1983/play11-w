@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { authOptions } from '@/lib/auth-options';
+import { prisma } from '@/lib/prisma';
 import { isAuthenticatedAdmin } from '@/lib/auth-utils';
 
 export async function GET(req: NextRequest) {
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Transform the data for the frontend
-    const formattedTransactions = transactions.map((transaction) => ({
+    const formattedTransactions = transactions.map((transaction: any) => ({
       id: transaction.id,
       userId: transaction.userId,
       userName: transaction.user.name,
