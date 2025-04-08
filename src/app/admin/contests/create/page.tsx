@@ -30,6 +30,8 @@ interface ContestFormData {
   totalPrize: number;
   firstPrize: number;
   winnerPercentage: number;
+  firstPrizePercentage: number;
+  platformCommission: number;
   isGuaranteed: boolean;
   winnerCount: number;
   status: string;
@@ -46,6 +48,8 @@ interface FormErrors {
   firstPrize?: string;
   winnerPercentage?: string;
   winnerCount?: string;
+  platformCommission?: string;
+  firstPrizePercentage?: string;
   [key: string]: string | undefined;
 }
 
@@ -100,6 +104,8 @@ export default function CreateContest() {
     totalPrize: 0,
     firstPrize: 0,
     winnerPercentage: 0,
+    firstPrizePercentage: 15,
+    platformCommission: 15,
     isGuaranteed: false,
     winnerCount: 0,
     status: 'upcoming',
@@ -160,8 +166,8 @@ export default function CreateContest() {
         // Calculate total prize pool (entry fee * total spots)
         const totalPrizePool = entryFee * totalSpots;
 
-        // Platform takes a commission
-        const platformCommission = 15; // 15% platform fee
+        // Platform takes a commission (now from form data)
+        const platformCommission = formData.platformCommission;
         const prizePool = Math.floor(
           totalPrizePool * ((100 - platformCommission) / 100)
         );
@@ -170,15 +176,23 @@ export default function CreateContest() {
         const winnerCount =
           Math.floor((winnerPercentage / 100) * totalSpots) || 0;
 
-        // First prize is typically 15-20% of the prize pool for larger contests
-        const firstPrizePercentage =
-          winnerCount > 100
-            ? 15
-            : winnerCount > 10
-            ? 25
-            : winnerCount > 1
-            ? 40
-            : 100;
+        // First prize percentage now from form data or automatic calculation
+        let firstPrizePercentage = formData.firstPrizePercentage;
+
+        // If user hasn't manually set it, calculate based on contest size
+        if (!updatedFormData.firstPrizePercentage) {
+          firstPrizePercentage =
+            winnerCount > 100
+              ? 15
+              : winnerCount > 10
+              ? 25
+              : winnerCount > 1
+              ? 40
+              : 100;
+
+          updatedFormData.firstPrizePercentage = firstPrizePercentage;
+        }
+
         const firstPrize = Math.floor(prizePool * (firstPrizePercentage / 100));
 
         updatedFormData.winnerCount = winnerCount;
@@ -212,6 +226,15 @@ export default function CreateContest() {
     }
     if (formData.winnerCount <= 0)
       newErrors.winnerCount = 'Winner count must be greater than 0';
+    if (formData.platformCommission < 0 || formData.platformCommission > 30)
+      newErrors.platformCommission =
+        'Platform commission must be between 0 and 30';
+    if (
+      formData.firstPrizePercentage < 1 ||
+      formData.firstPrizePercentage > 100
+    )
+      newErrors.firstPrizePercentage =
+        'First prize percentage must be between 1 and 100';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -531,57 +554,6 @@ export default function CreateContest() {
                     )}
                   </div>
 
-                  {/* Prize Pool */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Prize Pool (₹) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      name="prizePool"
-                      value={formData.prizePool}
-                      onChange={handleChange}
-                      placeholder="0"
-                      className={`w-full border ${
-                        errors.prizePool ? 'border-red-500' : 'border-gray-300'
-                      } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                    />
-                    {errors.prizePool && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.prizePool}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* First Prize */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      First Prize (₹) <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaTrophy />
-                      </span>
-                      <input
-                        type="number"
-                        name="firstPrize"
-                        value={formData.firstPrize}
-                        onChange={handleChange}
-                        placeholder="0"
-                        className={`w-full border ${
-                          errors.firstPrize
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                      />
-                    </div>
-                    {errors.firstPrize && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.firstPrize}
-                      </p>
-                    )}
-                  </div>
-
                   {/* Winner Percentage */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -612,6 +584,119 @@ export default function CreateContest() {
                     )}
                   </div>
 
+                  {/* Platform Commission */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Platform Commission (%){' '}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
+                        <FaPercent />
+                      </span>
+                      <input
+                        type="number"
+                        name="platformCommission"
+                        value={formData.platformCommission}
+                        onChange={handleChange}
+                        placeholder="15"
+                        className={`w-full border ${
+                          errors.platformCommission
+                            ? 'border-red-500'
+                            : 'border-gray-300'
+                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      />
+                    </div>
+                    {errors.platformCommission && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.platformCommission}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* First Prize Percentage */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Prize Percentage (%){' '}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
+                        <FaPercent />
+                      </span>
+                      <input
+                        type="number"
+                        name="firstPrizePercentage"
+                        value={formData.firstPrizePercentage}
+                        onChange={handleChange}
+                        placeholder="15"
+                        className={`w-full border ${
+                          errors.firstPrizePercentage
+                            ? 'border-red-500'
+                            : 'border-gray-300'
+                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      />
+                    </div>
+                    {errors.firstPrizePercentage && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.firstPrizePercentage}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Prize Pool */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Prize Pool (₹) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      name="prizePool"
+                      value={formData.prizePool}
+                      onChange={handleChange}
+                      placeholder="0"
+                      className={`w-full border ${
+                        errors.prizePool ? 'border-red-500' : 'border-gray-300'
+                      } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      readOnly
+                    />
+                    {errors.prizePool && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.prizePool}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* First Prize */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Prize (₹) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
+                        <FaTrophy />
+                      </span>
+                      <input
+                        type="number"
+                        name="firstPrize"
+                        value={formData.firstPrize}
+                        onChange={handleChange}
+                        placeholder="0"
+                        className={`w-full border ${
+                          errors.firstPrize
+                            ? 'border-red-500'
+                            : 'border-gray-300'
+                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                        readOnly
+                      />
+                    </div>
+                    {errors.firstPrize && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.firstPrize}
+                      </p>
+                    )}
+                  </div>
+
                   {/* Winner Count */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -628,6 +713,7 @@ export default function CreateContest() {
                           ? 'border-red-500'
                           : 'border-gray-300'
                       } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      readOnly
                     />
                     {errors.winnerCount && (
                       <p className="text-red-500 text-xs mt-1">

@@ -104,19 +104,10 @@ export const createMatch = async (match: any) => {
         } else if (
           match.status === 'LIVE' ||
           match.status === 'live' ||
-          match.status === 'inprogress'
+          match.status === 'inprogress' ||
+          match.status?.toLowerCase()?.includes('innings')
         ) {
           matchStatus = 'live';
-        } else {
-          // For past matches that don't have a completed status, mark as completed
-          console.log(
-            `Match ${
-              match.id
-            } has past date (${startingDate.toISOString()}) but status '${
-              match.status
-            }'. Setting as completed.`
-          );
-          matchStatus = 'completed';
         }
       }
 

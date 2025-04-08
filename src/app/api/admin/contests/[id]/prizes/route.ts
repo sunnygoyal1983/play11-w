@@ -16,6 +16,10 @@ function generatePrizeBreakup(contest: any): PrizeItem[] {
   const { totalPrize, winnerCount, firstPrize } = contest;
   const prizeBreakup: PrizeItem[] = [];
 
+  console.log(
+    `[Prize Breakup] Generating for contest with total prize: ${totalPrize}, winners: ${winnerCount}`
+  );
+
   // First prize is always fixed
   prizeBreakup.push({
     rank: 1,
@@ -29,175 +33,272 @@ function generatePrizeBreakup(contest: any): PrizeItem[] {
   }
 
   // Calculate remaining prize pool after first prize
-  const prizeAfterFirst = totalPrize - firstPrize;
+  let remainingPrize = totalPrize - firstPrize;
+
+  // For mega contests (100+ winners)
+  if (winnerCount >= 100) {
+    return generateMegaContestPrizes(
+      totalPrize,
+      winnerCount,
+      firstPrize,
+      remainingPrize
+    );
+  }
 
   // For small contests with 2 or 3 winners, use simple percentage distribution
   if (winnerCount <= 3) {
-    const secondPrize = Math.floor(prizeAfterFirst * 0.6);
+    return generateSmallContestPrizes(
+      totalPrize,
+      winnerCount,
+      firstPrize,
+      remainingPrize
+    );
+  }
+
+  // For medium contests (4-99 winners)
+  return generateMediumContestPrizes(
+    totalPrize,
+    winnerCount,
+    firstPrize,
+    remainingPrize
+  );
+}
+
+// Helper function for small contests (1-3 winners)
+function generateSmallContestPrizes(
+  totalPrize: number,
+  winnerCount: number,
+  firstPrize: number,
+  remainingPrize: number
+): PrizeItem[] {
+  const prizeBreakup: PrizeItem[] = [
+    {
+      rank: 1,
+      amount: firstPrize,
+      percentage: Math.round((firstPrize / totalPrize) * 100),
+    },
+  ];
+
+  if (winnerCount <= 1) return prizeBreakup;
+
+  if (winnerCount === 2) {
+    const secondPrize = remainingPrize;
+    prizeBreakup.push({
+      rank: 2,
+      amount: secondPrize,
+      percentage: Math.round((secondPrize / totalPrize) * 100),
+    });
+  } else {
+    // For 3 winners
+    const secondPrize = Math.floor(remainingPrize * 0.6);
     prizeBreakup.push({
       rank: 2,
       amount: secondPrize,
       percentage: Math.round((secondPrize / totalPrize) * 100),
     });
 
-    if (winnerCount === 3) {
-      const thirdPrize = prizeAfterFirst - secondPrize;
-      prizeBreakup.push({
-        rank: 3,
-        amount: thirdPrize,
-        percentage: Math.round((thirdPrize / totalPrize) * 100),
-      });
-    }
-
-    return prizeBreakup;
+    const thirdPrize = remainingPrize - secondPrize;
+    prizeBreakup.push({
+      rank: 3,
+      amount: thirdPrize,
+      percentage: Math.round((thirdPrize / totalPrize) * 100),
+    });
   }
 
-  // For medium contests (4-99 winners), use a decreasing prize distribution
-  if (winnerCount < 100) {
-    // Top 3 ranks get individual prizes
-    if (winnerCount >= 3) {
-      // Second prize (around 5-8% of total prize)
-      const secondPrize = Math.floor(totalPrize * 0.06);
-      prizeBreakup.push({
-        rank: 2,
-        amount: secondPrize,
-        percentage: Math.round((secondPrize / totalPrize) * 100),
-      });
+  return prizeBreakup;
+}
 
-      // Third prize (around 3-5% of total prize)
-      const thirdPrize = Math.floor(totalPrize * 0.04);
+// Helper function for medium contests (4-99 winners)
+function generateMediumContestPrizes(
+  totalPrize: number,
+  winnerCount: number,
+  firstPrize: number,
+  remainingPrize: number
+): PrizeItem[] {
+  const prizeBreakup: PrizeItem[] = [
+    {
+      rank: 1,
+      amount: firstPrize,
+      percentage: Math.round((firstPrize / totalPrize) * 100),
+    },
+  ];
+
+  let prizeAmountUsed = firstPrize;
+
+  // Top 3 ranks get individual prizes
+  if (winnerCount >= 3) {
+    // Second prize (around 5-8% of total prize)
+    const secondPrize = Math.floor(totalPrize * 0.06);
+    prizeBreakup.push({
+      rank: 2,
+      amount: secondPrize,
+      percentage: Math.round((secondPrize / totalPrize) * 100),
+    });
+    prizeAmountUsed += secondPrize;
+
+    // Third prize (around 3-5% of total prize)
+    const thirdPrize = Math.floor(totalPrize * 0.04);
+    prizeBreakup.push({
+      rank: 3,
+      amount: thirdPrize,
+      percentage: Math.round((thirdPrize / totalPrize) * 100),
+    });
+    prizeAmountUsed += thirdPrize;
+  }
+
+  // Recalculate remaining prize after top 3
+  const prizesForRemaining = totalPrize - prizeAmountUsed;
+  let usedFromRemaining = 0;
+
+  // For ranks 4-10, individual prizes with decreasing values
+  const rank4to10Count = Math.min(7, winnerCount - 3);
+  if (rank4to10Count > 0) {
+    const rank4to10Prize = prizesForRemaining * 0.3;
+    let rank4to10Used = 0;
+
+    for (let i = 0; i < rank4to10Count; i++) {
+      const rank = i + 4;
+      const weight =
+        (rank4to10Count - i) / ((rank4to10Count * (rank4to10Count + 1)) / 2);
+      const amount = Math.floor(rank4to10Prize * weight);
+      rank4to10Used += amount;
+
       prizeBreakup.push({
-        rank: 3,
-        amount: thirdPrize,
-        percentage: Math.round((thirdPrize / totalPrize) * 100),
+        rank,
+        amount,
+        percentage: Math.round((amount / totalPrize) * 100),
       });
     }
 
-    // Remaining prize pool after top 3
-    const topThreePrize =
-      winnerCount >= 3
-        ? firstPrize + prizeBreakup[1].amount + prizeBreakup[2].amount
-        : firstPrize;
-    const prizesForRemaining = totalPrize - topThreePrize;
+    usedFromRemaining += rank4to10Used;
+  }
 
-    // For ranks 4-10, individual prizes with decreasing values
-    const rank4to10Count = Math.min(7, winnerCount - 3);
-    if (rank4to10Count > 0) {
-      const rank4to10Prize = prizesForRemaining * 0.3;
-      for (let i = 0; i < rank4to10Count; i++) {
-        const rank = i + 4;
-        const weight =
-          (rank4to10Count - i) / ((rank4to10Count * (rank4to10Count + 1)) / 2);
-        const amount = Math.floor(rank4to10Prize * weight);
+  // Remaining ranks in groups with same prize amount
+  if (winnerCount > 10) {
+    const remainingCount = winnerCount - 10;
+    const leftoverPrize = prizesForRemaining - usedFromRemaining;
 
-        prizeBreakup.push({
-          rank,
-          amount,
-          percentage: Math.round((amount / totalPrize) * 100),
-        });
-      }
+    // Create groups based on remaining count
+    let groupBoundaries: number[][] = [];
+
+    if (remainingCount <= 40) {
+      // For smaller contests, create 2 groups
+      const mid = Math.floor(remainingCount / 2) + 10;
+      groupBoundaries = [
+        [11, mid],
+        [mid + 1, winnerCount],
+      ];
+    } else if (remainingCount <= 100) {
+      // For medium contests, create 3 groups
+      const third = Math.floor(remainingCount / 3);
+      groupBoundaries = [
+        [11, 10 + third],
+        [11 + third, 10 + 2 * third],
+        [11 + 2 * third, winnerCount],
+      ];
+    } else {
+      // For larger contests, create 4+ groups
+      groupBoundaries = [
+        [11, 25],
+        [26, 50],
+        [51, 100],
+        [101, winnerCount],
+      ];
     }
 
-    // Remaining ranks in groups with same prize amount
-    if (winnerCount > 10) {
-      const remainingCount = winnerCount - 10;
-      const remainingPrizeAmount = prizesForRemaining * 0.7;
+    // Calculate weights for prize distribution
+    let groupWeights = [];
+    let totalWeight = 0;
 
-      // Create groups based on remaining count
-      let groupBoundaries: number[][] = [];
+    for (let i = 0; i < groupBoundaries.length; i++) {
+      const [start, end] = groupBoundaries[i];
+      const groupSize = end - start + 1;
+      const weight = Math.pow(0.6, i) * groupSize;
+      totalWeight += weight;
+      groupWeights.push(weight);
+    }
 
-      if (remainingCount <= 40) {
-        // For smaller contests, create 2 groups
-        const mid = Math.floor(remainingCount / 2) + 10;
-        groupBoundaries = [
-          [11, mid],
-          [mid + 1, winnerCount],
-        ];
-      } else if (remainingCount <= 100) {
-        // For medium contests, create 3 groups
-        const third = Math.floor(remainingCount / 3);
-        groupBoundaries = [
-          [11, 10 + third],
-          [11 + third, 10 + 2 * third],
-          [11 + 2 * third, winnerCount],
-        ];
+    // Distribute remaining prize pool
+    let groupPrizeTotal = 0;
+    for (let i = 0; i < groupBoundaries.length; i++) {
+      const [start, end] = groupBoundaries[i];
+      const groupSize = end - start + 1;
+
+      // Last group gets whatever is left to ensure exact total
+      let groupAmount;
+      if (i === groupBoundaries.length - 1) {
+        groupAmount = leftoverPrize - groupPrizeTotal;
       } else {
-        // For larger contests, create 4+ groups
-        groupBoundaries = [
-          [11, 25],
-          [26, 50],
-          [51, 100],
-          [101, winnerCount],
-        ];
+        groupAmount = Math.floor(
+          (groupWeights[i] / totalWeight) * leftoverPrize
+        );
+        groupPrizeTotal += groupAmount;
       }
 
-      // Calculate diminishing prize amounts for each group
-      let prizePerGroup = [];
-      let totalWeight = 0;
+      const prizePerRank = Math.max(10, Math.floor(groupAmount / groupSize));
 
-      for (let i = 0; i < groupBoundaries.length; i++) {
-        const weight = Math.pow(0.6, i); // Exponential decay
-        totalWeight += weight;
-        prizePerGroup.push(weight);
-      }
+      // Create rank as string to avoid type issues
+      const rankString = `${start}-${end}`;
 
-      // Normalize and distribute
-      for (let i = 0; i < groupBoundaries.length; i++) {
-        const [start, end] = groupBoundaries[i];
-        const groupSize = end - start + 1;
-        const groupPrize =
-          (prizePerGroup[i] / totalWeight) * remainingPrizeAmount;
-        const prizePerRank = Math.floor(groupPrize / groupSize);
-
-        if (prizePerRank <= 0) continue; // Skip if prize is too small
-
-        prizeBreakup.push({
-          rank: `${start}-${end}`,
-          amount: prizePerRank,
-          percentage: Math.round(
-            ((prizePerRank * groupSize) / totalPrize) * 100
-          ),
-        });
-      }
+      prizeBreakup.push({
+        rank: rankString,
+        amount: prizePerRank,
+        percentage: Math.round(((prizePerRank * groupSize) / totalPrize) * 100),
+      });
     }
-
-    return prizeBreakup;
   }
 
-  // For mega contests (100+ winners), create Dream11-style tiered grouping
-  // Analyze the prize structure in the example: large first prize, then groups with decreasing prizes
+  return prizeBreakup;
+}
 
-  // First tier: Top 1 (already added)
+// Helper function for mega contests (100+ winners)
+function generateMegaContestPrizes(
+  totalPrize: number,
+  winnerCount: number,
+  firstPrize: number,
+  remainingPrize: number
+): PrizeItem[] {
+  console.log(
+    `[Prize Breakup] Starting mega contest distribution for totalPrize: ${totalPrize}, winners: ${winnerCount}`
+  );
 
-  // Second tier: Rank 2 (around 2-5% of prize pool)
+  // Initialize the prize breakup with the first prize
+  const prizeBreakup: PrizeItem[] = [
+    {
+      rank: 1,
+      amount: firstPrize,
+      percentage: Math.round((firstPrize / totalPrize) * 100),
+    },
+  ];
+
+  let prizeAmountUsed = firstPrize;
+
+  // Second tier: Rank 2
   const secondPrize = Math.floor(totalPrize * 0.03);
   prizeBreakup.push({
     rank: 2,
     amount: secondPrize,
     percentage: Math.round((secondPrize / totalPrize) * 100),
   });
+  prizeAmountUsed += secondPrize;
 
-  // Third tier: Rank 3 (slightly less than rank 2)
+  // Third tier: Rank 3
   const thirdPrize = Math.floor(totalPrize * 0.02);
   prizeBreakup.push({
     rank: 3,
     amount: thirdPrize,
     percentage: Math.round((thirdPrize / totalPrize) * 100),
   });
+  prizeAmountUsed += thirdPrize;
 
-  // Define tier boundaries based on total winners
-  // These tiers follow Dream11's approach with gradually increasing group sizes
+  // Calculate remaining prize pool for distribution
+  const remainingForDistribution = totalPrize - prizeAmountUsed;
+
+  // Define tier boundaries based on winner count
   const tierDefinitions = [];
 
-  // Create tiers based on winner count
-  if (winnerCount <= 100) {
-    tierDefinitions.push(
-      { start: 4, end: 10 },
-      { start: 11, end: 25 },
-      { start: 26, end: 50 },
-      { start: 51, end: winnerCount }
-    );
-  } else if (winnerCount <= 1000) {
+  // Create dynamic tiers based on winner count
+  if (winnerCount <= 1000) {
     tierDefinitions.push(
       { start: 4, end: 10 },
       { start: 11, end: 25 },
@@ -207,7 +308,7 @@ function generatePrizeBreakup(contest: any): PrizeItem[] {
       { start: 251, end: 500 },
       { start: 501, end: winnerCount }
     );
-  } else {
+  } else if (winnerCount <= 5000) {
     tierDefinitions.push(
       { start: 4, end: 10 },
       { start: 11, end: 25 },
@@ -219,140 +320,110 @@ function generatePrizeBreakup(contest: any): PrizeItem[] {
       { start: 1001, end: 2500 },
       { start: 2501, end: winnerCount }
     );
+  } else {
+    // For very large contests (5000+)
+    tierDefinitions.push(
+      { start: 4, end: 10 },
+      { start: 11, end: 25 },
+      { start: 26, end: 50 },
+      { start: 51, end: 100 },
+      { start: 101, end: 250 },
+      { start: 251, end: 500 },
+      { start: 501, end: 1000 },
+      { start: 1001, end: 2500 },
+      { start: 2501, end: 5000 },
+      { start: 5001, end: winnerCount }
+    );
   }
 
-  // Filter out tiers that start beyond our winner count
-  const validTiers = tierDefinitions.filter(
-    (tier) => tier.start <= winnerCount
+  // Filter and adjust tiers
+  const validTiers = tierDefinitions
+    .filter((tier) => tier.start <= winnerCount)
+    .map((tier) => ({
+      start: tier.start,
+      end: Math.min(tier.end, winnerCount),
+    }));
+
+  // Calculate total winners in tiers
+  let totalTierWinners = validTiers.reduce(
+    (sum, tier) => sum + (tier.end - tier.start + 1),
+    0
   );
 
-  // Calculate the remaining prize pool after top 3 prizes
-  const remainingPrize = totalPrize - firstPrize - secondPrize - thirdPrize;
-
-  // Calculate multipliers for each tier with exponential decay
-  // The sum of these will be used to divide the prize pool proportionally
-  let tierMultipliers = [];
-  let multiplierSum = 0;
+  // Calculate prize distribution with exponential decay
+  let totalDistributed = 0;
 
   for (let i = 0; i < validTiers.length; i++) {
     const tier = validTiers[i];
     const tierSize = tier.end - tier.start + 1;
 
-    // Smaller ranks get higher prizes (hence higher multiplier)
-    // Use an exponential decay for more natural distribution
-    const multiplier = Math.pow(0.7, i) * tierSize;
-    multiplierSum += multiplier;
-    tierMultipliers.push(multiplier);
-  }
+    if (tierSize <= 0) continue;
 
-  // Distribute remaining prize pool proportionally
-  for (let i = 0; i < validTiers.length; i++) {
-    const tier = validTiers[i];
-    const tierSize = tier.end - tier.start + 1;
+    // Calculate tier prize with exponential decay
+    const weight = Math.pow(0.7, i); // Decay factor
+    let tierAmount;
 
-    // Calculate prize for this tier
-    const tierPrizePool = (tierMultipliers[i] / multiplierSum) * remainingPrize;
-    const prizePerRank = Math.floor(tierPrizePool / tierSize);
+    if (i === validTiers.length - 1) {
+      // Last tier gets remaining prize pool
+      tierAmount = remainingForDistribution - totalDistributed;
+    } else {
+      // Calculate tier amount based on weight and size
+      tierAmount = Math.floor(
+        (remainingForDistribution * weight * tierSize) /
+          (totalTierWinners * Math.pow(0.7, validTiers.length - 1))
+      );
+      totalDistributed += tierAmount;
+    }
 
-    // Ensure prize is at least 10 rupees
-    const finalPrize = Math.max(10, prizePerRank);
+    // Calculate prize per rank, ensuring minimum of 10
+    const prizePerRank = Math.max(10, Math.floor(tierAmount / tierSize));
 
+    // Add tier to prize breakup
     prizeBreakup.push({
       rank: `${tier.start}-${tier.end}`,
-      amount: finalPrize,
-      percentage: Math.round(((finalPrize * tierSize) / totalPrize) * 100),
+      amount: prizePerRank,
+      percentage: Math.round(((prizePerRank * tierSize) / totalPrize) * 100),
     });
   }
 
-  // Ensure all winners get prizes - add any missing ranks
-  const coveredRanks = new Set();
-
-  // Add all ranks from prize breakup
-  for (const prize of prizeBreakup) {
-    if (typeof prize.rank === 'number') {
-      coveredRanks.add(prize.rank);
-    } else if (typeof prize.rank === 'string' && prize.rank.includes('-')) {
-      const [start, end] = prize.rank.split('-').map(Number);
-      for (let rank = start; rank <= end; rank++) {
-        coveredRanks.add(rank);
-      }
-    }
-  }
-
-  // Check if all winners are covered
-  let allCovered = true;
-  for (let rank = 1; rank <= winnerCount; rank++) {
-    if (!coveredRanks.has(rank)) {
-      allCovered = false;
-      break;
-    }
-  }
-
-  if (!allCovered) {
-    console.log(
-      `[Prize Breakup] Not all winners covered in the prize breakup. Ensuring coverage for all ${winnerCount} winners.`
-    );
-
-    // Find the smallest prize already in the breakup
-    let smallestPrize = Number.MAX_SAFE_INTEGER;
-    for (const prize of prizeBreakup) {
-      if (prize.amount < smallestPrize) {
-        smallestPrize = prize.amount;
-      }
-    }
-
-    // Ensure it's at least 10 rupees
-    smallestPrize = Math.max(10, smallestPrize);
-
-    // Fill in any missing ranks
-    let missingRankStart = null;
-    let missingRankEnd = null;
-
-    for (let rank = 1; rank <= winnerCount; rank++) {
-      if (!coveredRanks.has(rank)) {
-        if (missingRankStart === null) {
-          missingRankStart = rank;
-        }
-        missingRankEnd = rank;
-      } else if (missingRankStart !== null) {
-        // We found a gap - add it
-        prizeBreakup.push({
-          rank:
-            missingRankStart === missingRankEnd
-              ? missingRankStart
-              : `${missingRankStart}-${missingRankEnd}`,
-          amount: smallestPrize,
-          percentage: Math.round((smallestPrize / totalPrize) * 100),
-        });
-
-        missingRankStart = null;
-        missingRankEnd = null;
-      }
-    }
-
-    // Add the last gap if there is one
-    if (missingRankStart !== null) {
-      prizeBreakup.push({
-        rank:
-          missingRankStart === missingRankEnd
-            ? missingRankStart
-            : `${missingRankStart}-${missingRankEnd}`,
-        amount: smallestPrize,
-        percentage: Math.round((smallestPrize / totalPrize) * 100),
-      });
-    }
-  }
-
-  // Sort the prize breakup by rank
+  // Sort prize breakup by rank
   prizeBreakup.sort((a, b) => {
-    const rankA =
-      typeof a.rank === 'string' ? parseInt(a.rank.split('-')[0]) : a.rank;
-    const rankB =
-      typeof b.rank === 'string' ? parseInt(b.rank.split('-')[0]) : b.rank;
-    return rankA - rankB;
+    return getRankValue(a.rank) - getRankValue(b.rank);
   });
 
+  // Verify total prize distribution
+  const totalDistribution = prizeBreakup.reduce((sum, item) => {
+    const amount = item.amount;
+    if (typeof item.rank === 'string') {
+      const [start, end] = item.rank.split('-').map(Number);
+      if (!isNaN(start) && !isNaN(end)) {
+        return sum + amount * (end - start + 1);
+      }
+    }
+    return sum + amount;
+  }, 0);
+
+  console.log(
+    `[Prize Breakup] Total prize distribution: ${totalDistribution} out of ${totalPrize}`
+  );
+
+  // If we're significantly under the total prize, adjust the first prize
+  if (totalDistribution < totalPrize - 100) {
+    const difference = totalPrize - totalDistribution;
+    prizeBreakup[0].amount += difference;
+    prizeBreakup[0].percentage = Math.round(
+      (prizeBreakup[0].amount / totalPrize) * 100
+    );
+  }
+
   return prizeBreakup;
+}
+
+function getRankValue(rank: string | number): number {
+  if (typeof rank === 'string') {
+    return parseInt(rank.split('-')[0]);
+  }
+  return rank;
 }
 
 // GET - Retrieve prize breakup for a contest

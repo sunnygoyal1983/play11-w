@@ -324,7 +324,7 @@ export async function syncLiveMatchData(
 }
 
 /**
- * Retrieves live match data from our database
+ * Retrieves live match data from our database, prioritizing rawData for accuracy.
  * @param matchId Our internal match ID
  */
 export async function getLiveMatchData(matchId: string) {
@@ -333,322 +333,16 @@ export async function getLiveMatchData(matchId: string) {
       `Retrieving live match data from database for match ${matchId}`
     );
 
-    // Get match summary
+    // Get match summary (which includes rawData)
     const matchSummary = await prisma.matchSummary.findUnique({
       where: { matchId },
     });
 
-    // Get the most recent balls for "recent overs" display
-    const recentBalls = await prisma.ballData.findMany({
-      where: { matchId },
-      orderBy: { timestamp: 'desc' },
-      take: 6,
-    });
-
-    // Sort balls chronologically for display
-    const sortedBalls = [...recentBalls].sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-    );
-
-    // Build recent overs string
-    const recentOvers = sortedBalls
-      .map((ball) => {
-        if (ball.isWicket) return 'W';
-        if (ball.isSix) return '6';
-        if (ball.isFour) return '4';
-        return ball.runs.toString();
-      })
-      .join(' ');
-
-    // Get more comprehensive ball data to find active batsmen and bowlers
-    const balls = await prisma.ballData.findMany({
-      where: { matchId },
-      orderBy: { timestamp: 'desc' },
-      take: 50, // Get more data to ensure we find all active players
-    });
-
-    // Process batsmen data
-    const batsmen = new Map();
-    const bowlers = new Map();
-
-    // Track the two most recent batsmen
-    let currentBatsman1 = null;
-    let currentBatsman2 = null;
-    let currentBowler = null;
-
-    // Track last wicket
-    let lastWicket = null;
-
-    // Get match summary with raw data to help with batsman/bowler stats
-    const rawMatchData = matchSummary?.rawData as any;
-
-    // Extract batting and bowling data from the raw match data
-    const rawBattingData = new Map();
-    const rawBowlingData = new Map();
-
-    // Extract batting data from raw match data if available
-    if (rawMatchData?.batting && Array.isArray(rawMatchData.batting)) {
-      console.log(
-        `Found ${rawMatchData.batting.length} batting entries in raw data`
-      );
-
-      for (const battingEntry of rawMatchData.batting) {
-        if (battingEntry.player_id) {
-          const playerId = battingEntry.player_id.toString();
-
-          rawBattingData.set(playerId, {
-            name:
-              battingEntry.batsman?.fullname ||
-              battingEntry.batsman?.name ||
-              'Unknown Batsman',
-            score: battingEntry.score || 0,
-            ball: battingEntry.ball || 0,
-            fours: battingEntry.four_x || 0,
-            sixes: battingEntry.six_x || 0,
-            out: !!battingEntry.wicket_id,
-            active: battingEntry.active === true,
-            raw: battingEntry,
-          });
-
-          console.log(
-            `Added raw batting data for ${playerId}: ${battingEntry.score}(${battingEntry.ball})`
-          );
-        }
-      }
-    }
-
-    // Extract bowling data from raw match data if available
-    if (rawMatchData?.bowling && Array.isArray(rawMatchData.bowling)) {
-      console.log(
-        `Found ${rawMatchData.bowling.length} bowling entries in raw data`
-      );
-
-      for (const bowlingEntry of rawMatchData.bowling) {
-        if (bowlingEntry.player_id) {
-          const playerId = bowlingEntry.player_id.toString();
-
-          rawBowlingData.set(playerId, {
-            name:
-              bowlingEntry.bowler?.fullname ||
-              bowlingEntry.bowler?.name ||
-              'Unknown Bowler',
-            overs: bowlingEntry.overs || 0,
-            maidens: bowlingEntry.medians || 0,
-            runs: bowlingEntry.runs || 0,
-            wickets: bowlingEntry.wickets || 0,
-            active: bowlingEntry.active === true,
-            raw: bowlingEntry,
-          });
-
-          console.log(
-            `Added raw bowling data for ${playerId}: ${bowlingEntry.wickets}/${bowlingEntry.runs} (${bowlingEntry.overs})`
-          );
-        }
-      }
-    }
-
-    // Process all balls to extract player stats
-    for (const ball of balls) {
-      if (!ball.ballData) continue;
-
-      const ballData = ball.ballData as any;
-
-      // Process batsman
-      if (ball.batsmanId && ballData.batsman) {
-        if (!batsmen.has(ball.batsmanId)) {
-          // Initialize batsman stats
-          batsmen.set(ball.batsmanId, {
-            id: ball.batsmanId,
-            name:
-              ballData.batsman.fullname ||
-              ballData.batsman.name ||
-              'Unknown Batsman',
-            runs: 0,
-            balls: 0,
-            fours: 0,
-            sixes: 0,
-            out: false,
-            active: !!ballData.batsman.active,
-            timestamp: ball.timestamp,
-            raw: ballData.batsman,
-          });
-        }
-
-        // Update batsman stats
-        const batsmanStats = batsmen.get(ball.batsmanId);
-        batsmanStats.runs += ball.runs;
-        batsmanStats.balls += 1;
-        batsmanStats.fours += ball.isFour ? 1 : 0;
-        batsmanStats.sixes += ball.isSix ? 1 : 0;
-
-        // Mark as most recent batsman if not already tracked
-        if (!currentBatsman1) {
-          currentBatsman1 = batsmanStats;
-        } else if (!currentBatsman2 && ball.batsmanId !== currentBatsman1.id) {
-          currentBatsman2 = batsmanStats;
-        }
-      }
-
-      // Process bowler
-      if (ball.bowlerId && ballData.bowler) {
-        if (!bowlers.has(ball.bowlerId)) {
-          // Initialize bowler stats
-          bowlers.set(ball.bowlerId, {
-            id: ball.bowlerId,
-            name:
-              ballData.bowler.fullname ||
-              ballData.bowler.name ||
-              'Unknown Bowler',
-            overs: 0,
-            maidens: 0,
-            runs: 0,
-            wickets: 0,
-            active: !!ballData.bowler.active,
-            timestamp: ball.timestamp,
-            raw: ballData.bowler,
-          });
-        }
-
-        // Update bowler stats
-        const bowlerStats = bowlers.get(ball.bowlerId);
-        bowlerStats.runs += ball.runs;
-        bowlerStats.wickets += ball.isWicket ? 1 : 0;
-
-        // Track number of overs bowled (approximate)
-        const ballsInOver = Math.floor(bowlerStats.overs) * 6 + 1;
-        if (ballsInOver % 6 === 0) {
-          bowlerStats.overs = Math.floor(bowlerStats.overs) + 1;
-        } else {
-          bowlerStats.overs =
-            Math.floor(bowlerStats.overs) + (ballsInOver % 6) / 10;
-        }
-
-        // Mark as current bowler if not already tracked
-        if (!currentBowler) {
-          currentBowler = bowlerStats;
-        }
-      }
-
-      // Track last wicket
-      if (ball.isWicket && !lastWicket) {
-        // Try multiple approaches to find the batsman name
-        let batsmanName = 'Unknown Batsman';
-        let batsmanRuns = 0;
-
-        // First try: Use the out_batsman data if available
-        if (ballData.out_batsman) {
-          batsmanName =
-            ballData.out_batsman.fullname || ballData.out_batsman.name;
-
-          // Try to get runs from raw batting data
-          if (ball.outBatsmanId && rawBattingData.has(ball.outBatsmanId)) {
-            batsmanRuns = rawBattingData.get(ball.outBatsmanId).score;
-          }
-        }
-        // Second try: Use batsman data directly
-        else if (ballData.batsman) {
-          batsmanName = ballData.batsman.fullname || ballData.batsman.name;
-        }
-        // Third try: Use batsmanout_id to find batsman data in our map
-        else if (ball.outBatsmanId && batsmen.has(ball.outBatsmanId)) {
-          const batsmanStats = batsmen.get(ball.outBatsmanId);
-          batsmanName = batsmanStats.name;
-          batsmanRuns = batsmanStats.runs;
-        }
-        // Fourth try: If this ball was played by a batsman we know, use that
-        else if (ball.batsmanId && batsmen.has(ball.batsmanId)) {
-          const batsmanStats = batsmen.get(ball.batsmanId);
-          batsmanName = batsmanStats.name;
-          batsmanRuns = batsmanStats.runs;
-        }
-
-        // Try to get wicket type
-        const wicketType =
-          ball.wicketType || (ballData.score && ballData.score.name) || 'out';
-
-        // Try to get bowler name
-        let bowlerName = 'Unknown Bowler';
-        if (ballData.bowler) {
-          bowlerName = ballData.bowler.fullname || ballData.bowler.name;
-        } else if (ball.bowlerId && bowlers.has(ball.bowlerId)) {
-          bowlerName = bowlers.get(ball.bowlerId).name;
-        }
-
-        // Log what we found for debugging
-        console.log('Wicket data found:', {
-          batsmanName,
-          batsmanRuns,
-          wicketType,
-          bowlerName,
-          ballData: JSON.stringify(ballData).substring(0, 200),
-        });
-
-        // Now check raw batting data again for more accurate run totals
-        if (batsmanRuns === 0 && ball.outBatsmanId) {
-          // Try to get more accurate data from raw batting data
-          if (rawBattingData.has(ball.outBatsmanId)) {
-            const rawBatting = rawBattingData.get(ball.outBatsmanId);
-            batsmanRuns = rawBatting.score;
-
-            // If we also don't have a good name, use this one
-            if (batsmanName === 'Unknown Batsman') {
-              batsmanName = rawBatting.name;
-            }
-
-            console.log(
-              `Updated wicket data from raw batting data: ${batsmanName} scored ${batsmanRuns}`
-            );
-          }
-          // Check if any player in raw batting data matches this name
-          else {
-            for (const [id, rawBatting] of Array.from(
-              rawBattingData.entries()
-            )) {
-              if (rawBatting.name === batsmanName) {
-                batsmanRuns = rawBatting.score;
-                console.log(
-                  `Found matching name in raw batting data: ${batsmanName} scored ${batsmanRuns}`
-                );
-                break;
-              }
-            }
-          }
-        }
-
-        lastWicket = {
-          batsmanId: ball.outBatsmanId || ball.batsmanId,
-          batsmanName,
-          runs: batsmanRuns,
-          wicketType,
-          bowlerName,
-        };
-      }
-    }
-
-    // Convert to array and sort by timestamp (most recent first)
-    const batsmenArray = Array.from(batsmen.values()).sort(
-      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-    );
-
-    const bowlersArray = Array.from(bowlers.values()).sort(
-      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-    );
-
-    // Find active/current batsmen if we couldn't determine from timestamps
-    if (!currentBatsman1 && batsmenArray.length > 0) {
-      currentBatsman1 = batsmenArray[0];
-    }
-
-    if (!currentBatsman2 && batsmenArray.length > 1) {
-      currentBatsman2 = batsmenArray[1];
-    }
-
-    // Find active/current bowler if we couldn't determine from timestamps
-    if (!currentBowler && bowlersArray.length > 0) {
-      currentBowler = bowlersArray[0];
-    }
-
-    // Format the data for display
+    // --- START: Data Initialization ---
+    let teamAScore = matchSummary?.teamAScore || '0/0';
+    let teamBScore = matchSummary?.teamBScore || 'Yet to bat';
+    let overs = matchSummary?.overs || '0.0';
+    let currentInnings = matchSummary?.currentInnings || 1;
     let currentBatsman1Name = 'Waiting for data...';
     let currentBatsman1Score = '0 (0)';
     let currentBatsman2Name = 'Waiting for data...';
@@ -656,44 +350,529 @@ export async function getLiveMatchData(matchId: string) {
     let currentBowlerName = 'Waiting for data...';
     let currentBowlerFigures = '0/0 (0.0)';
     let lastWicketText = 'No wickets yet';
+    let recentOvers = '';
+    // --- END: Data Initialization ---
 
-    if (currentBatsman1) {
-      currentBatsman1Name = currentBatsman1.name;
-      currentBatsman1Score = `${currentBatsman1.runs} (${currentBatsman1.balls})`;
-      if (currentBatsman1.fours > 0 || currentBatsman1.sixes > 0) {
-        currentBatsman1Score += `, ${currentBatsman1.fours}x4, ${currentBatsman1.sixes}x6`;
+    // --- START: Process Recent Balls ---
+    // Get the most recent balls for "recent overs" display
+    const recentBalls = await prisma.ballData.findMany({
+      where: { matchId },
+      orderBy: { timestamp: 'desc' }, // Get most recent first
+      take: 6,
+    });
+
+    // Sort recent balls chronologically for display
+    const sortedRecentBalls = [...recentBalls].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+    );
+
+    // Build recent overs string
+    recentOvers = sortedRecentBalls
+      .map((ball) => {
+        if (ball.isWicket) return 'W';
+        if (ball.isSix) return '6';
+        if (ball.isFour) return '4';
+        return ball.runs.toString();
+      })
+      .join(' ');
+    // --- END: Process Recent Balls ---
+
+    // --- START: Process Active Players & Last Wicket using rawData ---
+    const rawMatchData = matchSummary?.rawData as any;
+
+    if (rawMatchData) {
+      console.log(`Processing rawData from MatchSummary for match ${matchId}`);
+
+      // 1. Find active batsmen from rawData.batting
+      // First try active flag
+      let activeBatsmen = (rawMatchData.batting || [])
+        .filter((b: any) => b.active === true)
+        .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0)); // Sort by 'sort' field
+
+      // If no active batsmen found, try batters with highest sort order in current innings
+      if (activeBatsmen.length < 2) {
+        console.log(
+          `Not enough active batsmen found, trying alternative approach`
+        );
+
+        // Determine current innings/scoreboard
+        const currentInningsNumber = Math.max(
+          ...(rawMatchData.runs || []).map((r: any) => r.inning || 1)
+        );
+        const currentScoreboard = `S${currentInningsNumber}`;
+
+        // Find batsmen from current innings sorted by sort order (descending)
+        // This will get us the most recent batsmen
+        const sortedBatsmen = (rawMatchData.batting || [])
+          .filter(
+            (b: any) => b.scoreboard === currentScoreboard && !b.wicket_id
+          )
+          .sort((a: any, b: any) => (b.sort || 0) - (a.sort || 0)); // Reverse sort
+
+        if (sortedBatsmen.length > 0) {
+          activeBatsmen = sortedBatsmen.slice(0, 2); // Take top 2
+          console.log(
+            `Using alternative approach: found ${activeBatsmen.length} recent batsmen`
+          );
+        }
       }
-    }
 
-    if (currentBatsman2) {
-      currentBatsman2Name = currentBatsman2.name;
-      currentBatsman2Score = `${currentBatsman2.runs} (${currentBatsman2.balls})`;
-      if (currentBatsman2.fours > 0 || currentBatsman2.sixes > 0) {
-        currentBatsman2Score += `, ${currentBatsman2.fours}x4, ${currentBatsman2.sixes}x6`;
+      // ADDITIONAL FALLBACK - If still no batsmen found, try using recent ball data
+      if (activeBatsmen.length < 2) {
+        console.log(`Still missing batsmen, trying ball data approach`);
+
+        // Get the most recent balls to find batsmen
+        const recentBalls = await prisma.ballData.findMany({
+          where: {
+            matchId,
+            isWicket: false, // Exclude wicket balls to focus on recent active play
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 10, // Get more recent balls
+        });
+
+        // Extract unique batsman IDs from recent balls
+        const recentBatsmenIds = new Set<string>();
+        for (const ball of recentBalls) {
+          if (ball.batsmanId) {
+            recentBatsmenIds.add(ball.batsmanId);
+            if (recentBatsmenIds.size >= 2) break; // Once we have 2 batsmen, stop
+          }
+        }
+
+        console.log(`Found ${recentBatsmenIds.size} batsmen from recent balls`);
+
+        // Find these batsmen in the rawData or use ball data
+        if (recentBatsmenIds.size > 0) {
+          // Convert Set to Array for processing
+          const batsmenIdsArray = Array.from(recentBatsmenIds);
+          const tempBatsmen = [];
+
+          for (const batsmanId of batsmenIdsArray) {
+            // Try to find in raw batting data first
+            const rawBatsman = (rawMatchData.batting || []).find(
+              (b: any) =>
+                b.player_id?.toString() === batsmanId ||
+                b.batsman?.id?.toString() === batsmanId
+            );
+
+            if (rawBatsman) {
+              // Found in raw data, use this
+              tempBatsmen.push(rawBatsman);
+            } else {
+              // Not found in raw data, create a minimal object with ID for name resolution
+              const mostRecentBall = recentBalls.find(
+                (ball) => ball.batsmanId === batsmanId
+              );
+              if (mostRecentBall?.ballData) {
+                const ballData = mostRecentBall.ballData as any;
+
+                // Create temporary batsman object with basic info
+                tempBatsmen.push({
+                  player_id: batsmanId,
+                  batsman: ballData.batsman, // Use batsman details from ball if available
+                  score: 0, // We don't know the score yet
+                  ball: 0, // We don't know the balls faced
+                  isFromBallData: true, // Flag that this is from ball data not batting list
+                });
+              }
+            }
+          }
+
+          if (tempBatsmen.length > 0) {
+            activeBatsmen = tempBatsmen;
+            console.log(
+              `Using batsmen from ball data: found ${activeBatsmen.length}`
+            );
+          }
+        }
       }
-    }
 
-    if (currentBowler) {
-      currentBowlerName = currentBowler.name;
-      // Format overs to one decimal place
-      const overs = Math.floor(currentBowler.overs) + (currentBowler.overs % 1);
-      currentBowlerFigures = `${currentBowler.wickets}/${
-        currentBowler.runs
-      } (${overs.toFixed(1)})`;
-    }
+      // LAST RESORT - If we still have no batsmen, try to use lineup data from batting team
+      if (activeBatsmen.length < 2 && rawMatchData.lineup) {
+        console.log(`Last resort: trying to use lineup data`);
 
-    if (lastWicket) {
-      lastWicketText = `${lastWicket.batsmanName} ${lastWicket.runs} - ${lastWicket.wicketType} ${lastWicket.bowlerName}`;
-    }
+        // Determine current batting team ID (team with lowest innings number typically)
+        let battingTeamId = null;
+        if (rawMatchData.runs && rawMatchData.runs.length > 0) {
+          // Get team with most recent innings
+          const currentInningsNumber = Math.max(
+            ...rawMatchData.runs.map((r: any) => r.inning || 1)
+          );
 
-    // Format the data for response
+          const currentInningsRun = rawMatchData.runs.find(
+            (r: any) => r.inning === currentInningsNumber
+          );
+
+          if (currentInningsRun) {
+            battingTeamId = currentInningsRun.team_id?.toString();
+            console.log(`Determined batting team ID: ${battingTeamId}`);
+          }
+        }
+
+        if (battingTeamId) {
+          // Get batsmen from lineup who belong to the batting team
+          const teamLineup = rawMatchData.lineup.filter(
+            (p: any) => p.lineup?.team_id?.toString() === battingTeamId
+          );
+
+          if (teamLineup.length >= 2) {
+            // Just take the first two batsmen from lineup as placeholders
+            // This is our last resort, so it's better than nothing
+            activeBatsmen = teamLineup.slice(0, 2).map((player: any) => ({
+              player_id: player.id?.toString(),
+              batsman: {
+                fullname: player.fullname,
+                name: player.name,
+              },
+              score: 0,
+              ball: 0,
+              isFromLineup: true, // Flag that this is from lineup, not batting list
+            }));
+
+            console.log(
+              `Using lineup data: found ${activeBatsmen.length} batsmen`
+            );
+          }
+        }
+      }
+
+      console.log(`Found total of ${activeBatsmen.length} batsmen to display`);
+
+      if (activeBatsmen.length > 0) {
+        const batsman1 = activeBatsmen[0];
+
+        // Enhanced player name resolution - first try the batsman object, then check lineup
+        let batsman1NameResolved = false;
+
+        // First check if the batsman object has name info
+        if (batsman1?.batsman?.fullname || batsman1?.batsman?.name) {
+          currentBatsman1Name =
+            batsman1.batsman.fullname || batsman1.batsman.name;
+          batsman1NameResolved = true;
+          console.log(
+            `Resolved batsman1 name from batsman object: ${currentBatsman1Name}`
+          );
+        }
+
+        // If not resolved, try to find in lineup
+        if (
+          !batsman1NameResolved &&
+          rawMatchData.lineup &&
+          batsman1?.player_id
+        ) {
+          const playerInLineup = rawMatchData.lineup.find(
+            (p: any) => p.id?.toString() === batsman1.player_id?.toString()
+          );
+
+          if (playerInLineup) {
+            currentBatsman1Name =
+              playerInLineup.fullname || playerInLineup.name;
+            batsman1NameResolved = true;
+            console.log(
+              `Resolved batsman1 name from lineup: ${currentBatsman1Name}`
+            );
+          }
+        }
+
+        // Last resort - if still not resolved, look in our database
+        if (!batsman1NameResolved && batsman1?.player_id) {
+          try {
+            const player = await prisma.player.findUnique({
+              where: { sportMonkId: batsman1.player_id.toString() },
+              select: { name: true },
+            });
+
+            if (player?.name) {
+              currentBatsman1Name = player.name;
+              batsman1NameResolved = true;
+              console.log(
+                `Resolved batsman1 name from database: ${currentBatsman1Name}`
+              );
+            }
+          } catch (err) {
+            console.error('Error looking up batsman1 name in database:', err);
+          }
+        }
+
+        // If still not resolved, use a nicer display for the ID
+        if (!batsman1NameResolved) {
+          currentBatsman1Name = `Batsman ${batsman1?.player_id || 'Unknown'}`;
+        }
+
+        currentBatsman1Score = formatBatsmanScore(batsman1);
+      }
+
+      if (activeBatsmen.length > 1) {
+        const batsman2 = activeBatsmen[1];
+
+        // Enhanced player name resolution for batsman2 - same approach as above
+        let batsman2NameResolved = false;
+
+        if (batsman2?.batsman?.fullname || batsman2?.batsman?.name) {
+          currentBatsman2Name =
+            batsman2.batsman.fullname || batsman2.batsman.name;
+          batsman2NameResolved = true;
+          console.log(
+            `Resolved batsman2 name from batsman object: ${currentBatsman2Name}`
+          );
+        }
+
+        if (
+          !batsman2NameResolved &&
+          rawMatchData.lineup &&
+          batsman2?.player_id
+        ) {
+          const playerInLineup = rawMatchData.lineup.find(
+            (p: any) => p.id?.toString() === batsman2.player_id?.toString()
+          );
+
+          if (playerInLineup) {
+            currentBatsman2Name =
+              playerInLineup.fullname || playerInLineup.name;
+            batsman2NameResolved = true;
+            console.log(
+              `Resolved batsman2 name from lineup: ${currentBatsman2Name}`
+            );
+          }
+        }
+
+        if (!batsman2NameResolved && batsman2?.player_id) {
+          try {
+            const player = await prisma.player.findUnique({
+              where: { sportMonkId: batsman2.player_id.toString() },
+              select: { name: true },
+            });
+
+            if (player?.name) {
+              currentBatsman2Name = player.name;
+              batsman2NameResolved = true;
+              console.log(
+                `Resolved batsman2 name from database: ${currentBatsman2Name}`
+              );
+            }
+          } catch (err) {
+            console.error('Error looking up batsman2 name in database:', err);
+          }
+        }
+
+        if (!batsman2NameResolved) {
+          currentBatsman2Name = `Batsman ${batsman2?.player_id || 'Unknown'}`;
+        }
+
+        currentBatsman2Score = formatBatsmanScore(batsman2);
+      }
+
+      // 2. Find active bowler from rawData.bowling - using enhanced approach
+      let activeBowler = (rawMatchData.bowling || []).find(
+        (b: any) => b.active === true
+      );
+
+      // If no active bowler found, get the one with highest sort order or most recent overs
+      if (!activeBowler) {
+        console.log(`No active bowler found, trying alternative approach`);
+
+        // Determine current innings/scoreboard
+        const currentInningsNumber = Math.max(
+          ...(rawMatchData.runs || []).map((r: any) => r.inning || 1)
+        );
+        const currentScoreboard = `S${currentInningsNumber}`;
+
+        // Find bowlers from current innings sorted by sort order or overs (descending)
+        const sortedBowlers = (rawMatchData.bowling || [])
+          .filter((b: any) => b.scoreboard === currentScoreboard)
+          .sort((a: any, b: any) => {
+            // If we have sort field, use that
+            if (typeof a.sort === 'number' && typeof b.sort === 'number') {
+              return (b.sort || 0) - (a.sort || 0);
+            }
+            // Otherwise sort by overs bowled
+            const oversA = parseFloat(a.overs || '0');
+            const oversB = parseFloat(b.overs || '0');
+            return oversB - oversA;
+          });
+
+        if (sortedBowlers.length > 0) {
+          activeBowler = sortedBowlers[0];
+          console.log(`Using alternative approach: found recent bowler`);
+        }
+      }
+
+      console.log(`Found active bowler in rawData: ${!!activeBowler}`);
+
+      if (activeBowler) {
+        // Enhanced bowler name resolution - same approach as batsmen
+        let bowlerNameResolved = false;
+
+        if (activeBowler?.bowler?.fullname || activeBowler?.bowler?.name) {
+          currentBowlerName =
+            activeBowler.bowler.fullname || activeBowler.bowler.name;
+          bowlerNameResolved = true;
+          console.log(
+            `Resolved bowler name from bowler object: ${currentBowlerName}`
+          );
+        }
+
+        if (
+          !bowlerNameResolved &&
+          rawMatchData.lineup &&
+          activeBowler?.player_id
+        ) {
+          const playerInLineup = rawMatchData.lineup.find(
+            (p: any) => p.id?.toString() === activeBowler.player_id?.toString()
+          );
+
+          if (playerInLineup) {
+            currentBowlerName = playerInLineup.fullname || playerInLineup.name;
+            bowlerNameResolved = true;
+            console.log(
+              `Resolved bowler name from lineup: ${currentBowlerName}`
+            );
+          }
+        }
+
+        if (!bowlerNameResolved && activeBowler?.player_id) {
+          try {
+            const player = await prisma.player.findUnique({
+              where: { sportMonkId: activeBowler.player_id.toString() },
+              select: { name: true },
+            });
+
+            if (player?.name) {
+              currentBowlerName = player.name;
+              bowlerNameResolved = true;
+              console.log(
+                `Resolved bowler name from database: ${currentBowlerName}`
+              );
+            }
+          } catch (err) {
+            console.error('Error looking up bowler name in database:', err);
+          }
+        }
+
+        if (!bowlerNameResolved) {
+          currentBowlerName = `Bowler ${activeBowler?.player_id || 'Unknown'}`;
+        }
+
+        currentBowlerFigures = formatBowlerFigures(activeBowler);
+      }
+
+      // 3. Find last wicket information
+      const lastWicketBall = await prisma.ballData.findFirst({
+        where: { matchId, isWicket: true },
+        orderBy: { timestamp: 'desc' }, // Most recent wicket
+      });
+
+      if (lastWicketBall?.ballData) {
+        console.log(
+          `Found last wicket ball: ID ${lastWicketBall.sportMonkBallId}, BatsmanOutID: ${lastWicketBall.outBatsmanId}`
+        );
+        const wicketBallData = lastWicketBall.ballData as any;
+
+        // Determine the ID of the batsman who got out
+        const outBatsmanId =
+          lastWicketBall.outBatsmanId || // From our parsed BallData field
+          wicketBallData.batsmanout_id?.toString() || // From raw ball data
+          wicketBallData.batsman?.id?.toString(); // Fallback to batsman on that ball if out ID missing
+
+        let batsmanName = 'Unknown Batsman';
+        let batsmanScore = '0 (0)';
+        let wicketType =
+          wicketBallData.wicket_type || wicketBallData.score?.name || 'out'; // Try different fields for type
+        let bowlerName = 'Unknown Bowler';
+
+        console.log(`Processing last wicket for batsman ID ${outBatsmanId}`);
+
+        // Find the dismissed batsman's definitive stats from rawData using the ID
+        const dismissedBatsmanData = (rawMatchData.batting || []).find(
+          (b: any) => b.player_id?.toString() === outBatsmanId
+        );
+
+        // First try to get name and score from rawData.batting
+        if (dismissedBatsmanData) {
+          console.log(`Found dismissed batsman (${outBatsmanId}) in rawData`);
+
+          // Try batsman object
+          if (
+            dismissedBatsmanData.batsman?.fullname ||
+            dismissedBatsmanData.batsman?.name
+          ) {
+            batsmanName =
+              dismissedBatsmanData.batsman.fullname ||
+              dismissedBatsmanData.batsman.name;
+          }
+
+          batsmanScore = formatBatsmanScore(dismissedBatsmanData);
+        }
+        // If not found in batting data, try the wicket ball itself
+        else if (wicketBallData.out_batsman) {
+          batsmanName =
+            wicketBallData.out_batsman.fullname ||
+            wicketBallData.out_batsman.name;
+        } else if (wicketBallData.batsman) {
+          batsmanName =
+            wicketBallData.batsman.fullname || wicketBallData.batsman.name;
+        }
+
+        // Still no name? Try lineup
+        if (
+          batsmanName === 'Unknown Batsman' &&
+          rawMatchData.lineup &&
+          outBatsmanId
+        ) {
+          const playerInLineup = rawMatchData.lineup.find(
+            (p: any) => p.id?.toString() === outBatsmanId
+          );
+
+          if (playerInLineup) {
+            batsmanName = playerInLineup.fullname || playerInLineup.name;
+          }
+        }
+
+        // Last resort - database lookup
+        if (batsmanName === 'Unknown Batsman' && outBatsmanId) {
+          try {
+            const player = await prisma.player.findUnique({
+              where: { sportMonkId: outBatsmanId },
+              select: { name: true },
+            });
+
+            if (player?.name) {
+              batsmanName = player.name;
+            }
+          } catch (err) {
+            console.log(
+              'Error looking up last wicket batsman name in database:',
+              err
+            );
+          }
+        }
+
+        // Get bowler name - try multiple sources
+        if (wicketBallData.bowler) {
+          bowlerName =
+            wicketBallData.bowler.fullname || wicketBallData.bowler.name;
+        }
+
+        // Construct the last wicket string (adjust format as needed)
+        lastWicketText = `${batsmanName} ${batsmanScore} - ${wicketType} ${
+          bowlerName !== 'Unknown Bowler' ? 'b ' + bowlerName : ''
+        }`;
+        console.log(`Formatted last wicket text: ${lastWicketText}`);
+      }
+    } else {
+      console.warn(`No rawMatchData found in MatchSummary for ${matchId}`);
+    }
+    // --- END: Process Active Players & Last Wicket ---
+
+    // Format the final data for response
     return {
       success: true,
       data: {
-        teamAScore: matchSummary?.teamAScore || '0/0',
-        teamBScore: matchSummary?.teamBScore || 'Yet to bat',
-        overs: matchSummary?.overs || '0.0',
-        currentInnings: matchSummary?.currentInnings || 1,
+        teamAScore,
+        teamBScore,
+        overs,
+        currentInnings,
         currentBatsman1: currentBatsman1Name,
         currentBatsman1Score: currentBatsman1Score,
         currentBatsman2: currentBatsman2Name,
@@ -708,6 +887,48 @@ export async function getLiveMatchData(matchId: string) {
     console.error('Error retrieving live match data:', error);
     return { success: false, error: 'Failed to retrieve live match data' };
   }
+}
+
+// Helper function to safely get player name
+function getPlayerName(playerObj: any, defaultName: string): string {
+  return playerObj?.fullname || playerObj?.name || defaultName;
+}
+
+// Helper function to format batsman score string
+function formatBatsmanScore(batsmanData: any): string {
+  if (!batsmanData) return '0 (0)';
+
+  // If this is from ball data or lineup, show "batting" instead of a zero score
+  if (batsmanData.isFromBallData || batsmanData.isFromLineup) {
+    return 'batting';
+  }
+
+  // Check if we have actual score data
+  const hasRuns = typeof batsmanData.score === 'number' || batsmanData.score;
+  const hasBalls = typeof batsmanData.ball === 'number' || batsmanData.ball;
+
+  // If no actual score data, return "batting"
+  if (!hasRuns && !hasBalls) {
+    return 'batting';
+  }
+
+  // Format with available data
+  let score = `${batsmanData.score || 0} (${batsmanData.ball || 0})`;
+  if (batsmanData.four_x) score += `, ${batsmanData.four_x}x4`;
+  if (batsmanData.six_x) score += `, ${batsmanData.six_x}x6`;
+  return score;
+}
+
+// Helper function to format bowler figures string
+function formatBowlerFigures(bowlerData: any): string {
+  if (!bowlerData) return '0/0 (0.0)';
+  const oversNum = parseFloat(bowlerData.overs || '0');
+  // Ensure standard cricket over notation (e.g., 6 balls = 1.0 over, not 0.6)
+  const completedOvers = Math.floor(oversNum);
+  const ballsInCurrentOver = Math.round((oversNum - completedOvers) * 10); // Extract balls safely
+  const displayOvers = `${completedOvers}.${ballsInCurrentOver}`;
+
+  return `${bowlerData.wickets || 0}/${bowlerData.runs || 0} (${displayOvers})`;
 }
 
 /**
