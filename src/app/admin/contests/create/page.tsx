@@ -1,24 +1,25 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { FaSave } from 'react-icons/fa';
 import {
-  FaArrowLeft,
-  FaSave,
-  FaTrophy,
-  FaUsers,
-  FaMoneyBillWave,
-  FaPercent,
-} from 'react-icons/fa';
-import Link from 'next/link';
+  calculateContestFields,
+  validateContestForm,
+  recommendFirstPrizePercentage,
+  adjustWinnerCount,
+  ValidationError,
+} from '@/utils/contest-validation';
+import ContestTemplates, {
+  ContestTemplate,
+  CONTEST_TEMPLATES,
+} from '@/components/contests/ContestTemplates';
+import PrizeBreakupPreview from '@/components/contests/PrizeBreakupPreview';
+import { fetchPrizeBreakupPreview, PrizeItem } from '@/utils/prize-generation';
 
-// Define interfaces
 interface Match {
   id: string;
   name: string;
-  teamAName: string;
-  teamBName: string;
-  startTime: string;
 }
 
 interface ContestFormData {
@@ -36,82 +37,37 @@ interface ContestFormData {
   winnerCount: number;
   status: string;
   filledSpots: number;
+  prizeStructure: 'topHeavy' | 'balanced' | 'distributed' | 'winnerTakesAll';
 }
-
-interface FormErrors {
-  matchId?: string;
-  name?: string;
-  entryFee?: string;
-  totalSpots?: string;
-  prizePool?: string;
-  totalPrize?: string;
-  firstPrize?: string;
-  winnerPercentage?: string;
-  winnerCount?: string;
-  platformCommission?: string;
-  firstPrizePercentage?: string;
-  [key: string]: string | undefined;
-}
-
-// Contest templates similar to Dream11
-const contestTemplates = [
-  {
-    name: 'Grand Contest',
-    entryFee: 49,
-    totalSpots: 10000,
-    winnerPercentage: 50,
-    isGuaranteed: true,
-    description: 'Mega prize pool with 50% winners',
-  },
-  {
-    name: 'Winner Takes All',
-    entryFee: 99,
-    totalSpots: 500,
-    winnerPercentage: 10,
-    isGuaranteed: false,
-    description: 'Top winners get bigger prizes',
-  },
-  {
-    name: 'Small League',
-    entryFee: 20,
-    totalSpots: 100,
-    winnerPercentage: 30,
-    isGuaranteed: true,
-    description: 'Small entry fee, good winning chances',
-  },
-  {
-    name: 'Head to Head',
-    entryFee: 500,
-    totalSpots: 2,
-    winnerPercentage: 50,
-    isGuaranteed: true,
-    description: '1v1 contest, winner takes all',
-  },
-];
 
 export default function CreateContest() {
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(false);
   const [matches, setMatches] = useState<Match[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('details');
-  const [showTemplates, setShowTemplates] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<string>('templates');
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
+    []
+  );
+  const [prizeBreakup, setPrizeBreakup] = useState<PrizeItem[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
+
   const [formData, setFormData] = useState<ContestFormData>({
     matchId: '',
     name: '',
-    entryFee: 0,
-    totalSpots: 0,
+    entryFee: 49,
+    totalSpots: 1000,
     prizePool: 0,
     totalPrize: 0,
     firstPrize: 0,
-    winnerPercentage: 0,
+    winnerPercentage: 30,
     firstPrizePercentage: 15,
     platformCommission: 15,
-    isGuaranteed: false,
+    isGuaranteed: true,
     winnerCount: 0,
     status: 'upcoming',
     filledSpots: 0,
+    prizeStructure: 'balanced',
   });
-  const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     // Fetch matches for dropdown
@@ -129,121 +85,253 @@ export default function CreateContest() {
     fetchMatches();
   }, []);
 
+  useEffect(() => {
+    // Calculate derived values when core inputs change
+    updateDerivedFields();
+  }, [
+    formData.entryFee,
+    formData.totalSpots,
+    formData.winnerPercentage,
+    formData.platformCommission,
+    formData.firstPrizePercentage,
+  ]);
+
+  useEffect(() => {
+    // Auto-generate preview when form data changes and there are no critical errors
+    const criticalErrors = validationErrors.filter(
+      (error) => error.severity === 'error'
+    );
+    if (
+      criticalErrors.length === 0 &&
+      formData.matchId &&
+      formData.totalPrize > 0
+    ) {
+      generatePrizeBreakupPreview();
+    }
+  }, [
+    formData.totalPrize,
+    formData.winnerCount,
+    formData.firstPrize,
+    formData.prizeStructure,
+    formData.matchId,
+  ]);
+
+  // Update calculated fields based on core inputs
+  const updateDerivedFields = () => {
+    const {
+      entryFee,
+      totalSpots,
+      winnerPercentage,
+      platformCommission,
+      firstPrizePercentage,
+    } = formData;
+
+    // Skip calculation if core inputs are invalid
+    if (
+      entryFee <= 0 ||
+      totalSpots <= 0 ||
+      winnerPercentage <= 0 ||
+      winnerPercentage > 100 ||
+      platformCommission < 0 ||
+      platformCommission > 30 ||
+      firstPrizePercentage <= 0 ||
+      firstPrizePercentage > 100
+    ) {
+      return;
+    }
+
+    // Calculate derived fields
+    const derivedFields = calculateContestFields(
+      entryFee,
+      totalSpots,
+      winnerPercentage,
+      platformCommission,
+      firstPrizePercentage
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      ...derivedFields,
+    }));
+
+    // Validate the updated form
+    const errors = validateContestForm({
+      ...formData,
+      ...derivedFields,
+    });
+
+    setValidationErrors(errors);
+  };
+
   const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
 
-    const newValue =
-      type === 'checkbox'
-        ? checked
-        : type === 'number'
-        ? parseFloat(value)
-        : value;
+    // Create updated form data
+    let updatedData = { ...formData };
 
-    const updatedFormData = {
-      ...formData,
-      [name]: newValue,
-    };
-
-    // Calculate derived values when relevant fields change
-    if (
-      name === 'entryFee' ||
-      name === 'totalSpots' ||
-      name === 'winnerPercentage'
+    // Handle checkbox inputs
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      updatedData = { ...updatedData, [name]: checked };
+    }
+    // Handle numeric inputs
+    else if (
+      [
+        'entryFee',
+        'totalSpots',
+        'winnerPercentage',
+        'platformCommission',
+        'firstPrizePercentage',
+      ].includes(name)
     ) {
-      const entryFee =
-        name === 'entryFee' ? (newValue as number) : formData.entryFee;
-      const totalSpots =
-        name === 'totalSpots' ? (newValue as number) : formData.totalSpots;
-      const winnerPercentage =
-        name === 'winnerPercentage'
-          ? (newValue as number)
-          : formData.winnerPercentage;
-
-      if (entryFee > 0 && totalSpots > 0) {
-        // Calculate total prize pool (entry fee * total spots)
-        const totalPrizePool = entryFee * totalSpots;
-
-        // Platform takes a commission (now from form data)
-        const platformCommission = formData.platformCommission;
-        const prizePool = Math.floor(
-          totalPrizePool * ((100 - platformCommission) / 100)
-        );
-
-        // Calculate winner count based on winner percentage (rounded down)
-        const winnerCount =
-          Math.floor((winnerPercentage / 100) * totalSpots) || 0;
-
-        // First prize percentage now from form data or automatic calculation
-        let firstPrizePercentage = formData.firstPrizePercentage;
-
-        // If user hasn't manually set it, calculate based on contest size
-        if (!updatedFormData.firstPrizePercentage) {
-          firstPrizePercentage =
-            winnerCount > 100
-              ? 15
-              : winnerCount > 10
-              ? 25
-              : winnerCount > 1
-              ? 40
-              : 100;
-
-          updatedFormData.firstPrizePercentage = firstPrizePercentage;
-        }
-
-        const firstPrize = Math.floor(prizePool * (firstPrizePercentage / 100));
-
-        updatedFormData.winnerCount = winnerCount;
-        updatedFormData.totalPrize = prizePool;
-        updatedFormData.prizePool = prizePool;
-        updatedFormData.firstPrize = firstPrize;
+      // For percentage fields, don't allow values over 100
+      if (
+        (name === 'winnerPercentage' || name === 'firstPrizePercentage') &&
+        parseFloat(value) > 100
+      ) {
+        updatedData = { ...updatedData, [name]: 100 };
+      } else {
+        updatedData = {
+          ...updatedData,
+          [name]: value === '' ? 0 : parseFloat(value),
+        };
       }
     }
-
-    setFormData(updatedFormData);
-  };
-
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
-
-    if (!formData.matchId) newErrors.matchId = 'Match is required';
-    if (!formData.name) newErrors.name = 'Contest name is required';
-    if (formData.entryFee < 0)
-      newErrors.entryFee = 'Entry fee cannot be negative';
-    if (formData.totalSpots <= 0)
-      newErrors.totalSpots = 'Total spots must be greater than 0';
-    if (formData.prizePool <= 0)
-      newErrors.prizePool = 'Prize pool must be greater than 0';
-    if (formData.totalPrize <= 0)
-      newErrors.totalPrize = 'Total prize must be greater than 0';
-    if (formData.firstPrize <= 0)
-      newErrors.firstPrize = 'First prize must be greater than 0';
-    if (formData.winnerPercentage <= 0 || formData.winnerPercentage > 100) {
-      newErrors.winnerPercentage =
-        'Winner percentage must be between 1 and 100';
+    // Handle other inputs
+    else {
+      updatedData = { ...updatedData, [name]: value };
     }
-    if (formData.winnerCount <= 0)
-      newErrors.winnerCount = 'Winner count must be greater than 0';
-    if (formData.platformCommission < 0 || formData.platformCommission > 30)
-      newErrors.platformCommission =
-        'Platform commission must be between 0 and 30';
-    if (
-      formData.firstPrizePercentage < 1 ||
-      formData.firstPrizePercentage > 100
-    )
-      newErrors.firstPrizePercentage =
-        'First prize percentage must be between 1 and 100';
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Update form data
+    setFormData(updatedData);
+
+    // Special handling for match selection to immediately revalidate
+    if (name === 'matchId') {
+      const errors = validateContestForm(updatedData);
+      setValidationErrors(errors);
+    }
   };
 
+  // Handle template selection
+  const handleTemplateSelect = (template: ContestTemplate) => {
+    // Apply template values
+    const firstPrizePercentage = recommendFirstPrizePercentage(
+      Math.floor((template.winnerPercentage / 100) * template.totalSpots)
+    );
+
+    // Calculate prize pool and other derived fields
+    const totalCollection = template.entryFee * template.totalSpots;
+    const prizePool = Math.floor(
+      totalCollection * ((100 - formData.platformCommission) / 100)
+    );
+    const winnerCount =
+      Math.floor((template.winnerPercentage / 100) * template.totalSpots) || 1;
+    const firstPrize = Math.floor(prizePool * (firstPrizePercentage / 100));
+
+    // Apply all changes in a single update to preserve existing matchId
+    const updatedFormData = {
+      ...formData, // Keep existing values including matchId
+      name: template.name,
+      entryFee: template.entryFee,
+      totalSpots: template.totalSpots,
+      winnerPercentage: template.winnerPercentage,
+      isGuaranteed: template.isGuaranteed,
+      prizeStructure: template.prizeStructure,
+      firstPrizePercentage,
+      prizePool,
+      totalPrize: prizePool,
+      winnerCount,
+      firstPrize,
+    };
+
+    // Update form data
+    setFormData(updatedFormData);
+
+    // Move to details tab
+    setActiveTab('details');
+
+    // Re-validate the form with updated data
+    const errors = validateContestForm(updatedFormData);
+    setValidationErrors(errors);
+  };
+
+  // Generate prize breakup preview
+  const generatePrizeBreakupPreview = async () => {
+    setLoadingPreview(true);
+
+    // Log current form state for debugging
+    console.log('Generating preview with:', {
+      matchId: formData.matchId,
+      totalPrize: formData.totalPrize,
+      winnerCount: formData.winnerCount,
+      entryFee: formData.entryFee,
+      firstPrize: formData.firstPrize,
+      prizeStructure: formData.prizeStructure,
+    });
+
+    try {
+      // Make sure we have the required fields
+      if (
+        !formData.totalPrize ||
+        !formData.winnerCount ||
+        !formData.firstPrize
+      ) {
+        console.error('Missing required fields for prize breakup');
+        setPrizeBreakup([]);
+        return;
+      }
+
+      const response = await fetchPrizeBreakupPreview({
+        totalPrize: formData.totalPrize,
+        winnerCount: formData.winnerCount,
+        firstPrize: formData.firstPrize,
+        entryFee: formData.entryFee,
+        prizeStructure: formData.prizeStructure,
+      });
+
+      console.log('Received prize breakup data:', response);
+
+      // Check if we have a valid array
+      if (Array.isArray(response)) {
+        console.log('Valid prize breakup array with length:', response.length);
+        setPrizeBreakup(response);
+      } else {
+        console.error('Received invalid prize breakup data:', response);
+        setPrizeBreakup([]);
+      }
+    } catch (error) {
+      console.error('Error generating prize breakup preview:', error);
+      alert(
+        'Failed to generate prize breakup. Please try again or contact support.'
+      );
+      setPrizeBreakup([]);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  // Form submission
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    // Validate form
+    const errors = validateContestForm(formData);
+    setValidationErrors(errors);
+
+    // Check for critical errors
+    const criticalErrors = errors.filter((error) => error.severity === 'error');
+    if (criticalErrors.length > 0) {
+      // Scroll to the first error field
+      const firstErrorField = document.querySelector(
+        `[name="${criticalErrors[0].field}"]`
+      );
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
 
     setLoading(true);
 
@@ -273,154 +361,40 @@ export default function CreateContest() {
     }
   };
 
-  const applyTemplate = (template: (typeof contestTemplates)[0]) => {
-    setFormData({
-      ...formData,
-      name: template.name,
-      entryFee: template.entryFee,
-      totalSpots: template.totalSpots,
-      winnerPercentage: template.winnerPercentage,
-      isGuaranteed: template.isGuaranteed,
-    });
+  // Helper to check for field errors
+  const getFieldError = (fieldName: string) => {
+    return validationErrors.find((error) => error.field === fieldName);
+  };
 
-    // Calculate other values based on template
-    const totalPrizePool = template.entryFee * template.totalSpots;
-    const platformCommission = 15; // 15% platform fee
-    const prizePool = Math.floor(
-      totalPrizePool * ((100 - platformCommission) / 100)
-    );
-    const winnerCount =
-      Math.floor((template.winnerPercentage / 100) * template.totalSpots) || 0;
-    const firstPrizePercentage =
-      winnerCount > 100
-        ? 15
-        : winnerCount > 10
-        ? 25
-        : winnerCount > 1
-        ? 40
-        : 100;
-    const firstPrize = Math.floor(prizePool * (firstPrizePercentage / 100));
-
-    setFormData((prev) => ({
-      ...prev,
-      name: template.name,
-      entryFee: template.entryFee,
-      totalSpots: template.totalSpots,
-      winnerPercentage: template.winnerPercentage,
-      isGuaranteed: template.isGuaranteed,
-      winnerCount: winnerCount,
-      prizePool: prizePool,
-      totalPrize: prizePool,
-      firstPrize: firstPrize,
-    }));
-
-    setActiveTab('details');
-    setShowTemplates(false);
+  // Helper to determine field class based on error state
+  const getFieldClass = (fieldName: string) => {
+    const error = getFieldError(fieldName);
+    return `w-full border ${
+      error
+        ? error.severity === 'error'
+          ? 'border-red-500'
+          : 'border-yellow-500'
+        : 'border-gray-300'
+    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`;
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen pb-10">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">
+    <div className="py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
             Create New Contest
           </h1>
-          <Link
-            href="/admin/contests"
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center"
-          >
-            <FaArrowLeft className="mr-2" />
-            Back to Contests
-          </Link>
+          <p className="mt-1 text-sm text-gray-600">
+            Set up a new contest for players to join.
+          </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b">
-            <button
-              onClick={() => setActiveTab('templates')}
-              className={`flex-1 py-4 px-6 text-center border-b-2 ${
-                activeTab === 'templates'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500'
-              }`}
-            >
-              <FaTrophy className="inline-block mr-2" />
-              Contest Templates
-            </button>
-            <button
-              onClick={() => setActiveTab('details')}
-              className={`flex-1 py-4 px-6 text-center border-b-2 ${
-                activeTab === 'details'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500'
-              }`}
-            >
-              <FaUsers className="inline-block mr-2" />
-              Contest Details
-            </button>
-          </div>
-
+        <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="p-6">
             {activeTab === 'templates' && (
-              <div>
-                <h2 className="text-lg font-medium mb-4">Select a Template</h2>
-                <p className="text-gray-600 mb-6">
-                  Choose a pre-configured contest template to get started
-                  quickly.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {contestTemplates.map((template, index) => (
-                    <div
-                      key={index}
-                      className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition"
-                      onClick={() => applyTemplate(template)}
-                    >
-                      <h3 className="font-bold text-lg mb-1">
-                        {template.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-2">
-                        {template.description}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <span className="text-gray-500">Entry Fee:</span>{' '}
-                          <span className="font-medium">
-                            ₹{template.entryFee}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Total Spots:</span>{' '}
-                          <span className="font-medium">
-                            {template.totalSpots}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Winners:</span>{' '}
-                          <span className="font-medium">
-                            {template.winnerPercentage}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Guaranteed:</span>{' '}
-                          <span className="font-medium">
-                            {template.isGuaranteed ? 'Yes' : 'No'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        className="mt-3 w-full bg-indigo-100 text-indigo-700 py-2 rounded"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          applyTemplate(template);
-                        }}
-                      >
-                        Use Template
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-6">
+                <ContestTemplates onSelectTemplate={handleTemplateSelect} />
 
                 <div className="mt-8 flex justify-end">
                   <button
@@ -434,22 +408,7 @@ export default function CreateContest() {
             )}
 
             {activeTab === 'details' && (
-              <form onSubmit={handleSubmit}>
-                {showTemplates && (
-                  <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium">Need inspiration?</h3>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('templates')}
-                        className="text-indigo-600 hover:text-indigo-800"
-                      >
-                        Choose from templates
-                      </button>
-                    </div>
-                  </div>
-                )}
-
+              <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Match Selection */}
                   <div>
@@ -460,9 +419,7 @@ export default function CreateContest() {
                       name="matchId"
                       value={formData.matchId}
                       onChange={handleChange}
-                      className={`w-full border ${
-                        errors.matchId ? 'border-red-500' : 'border-gray-300'
-                      } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      className={getFieldClass('matchId')}
                     >
                       <option value="">Select a match</option>
                       {matches.map((match) => (
@@ -471,9 +428,9 @@ export default function CreateContest() {
                         </option>
                       ))}
                     </select>
-                    {errors.matchId && (
+                    {getFieldError('matchId') && (
                       <p className="text-red-500 text-xs mt-1">
-                        {errors.matchId}
+                        {getFieldError('matchId')?.message}
                       </p>
                     )}
                   </div>
@@ -489,12 +446,12 @@ export default function CreateContest() {
                       value={formData.name}
                       onChange={handleChange}
                       placeholder="e.g. Grand Prize Pool"
-                      className={`w-full border ${
-                        errors.name ? 'border-red-500' : 'border-gray-300'
-                      } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      className={getFieldClass('name')}
                     />
-                    {errors.name && (
-                      <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                    {getFieldError('name') && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {getFieldError('name')?.message}
+                      </p>
                     )}
                   </div>
 
@@ -503,24 +460,18 @@ export default function CreateContest() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Entry Fee (₹) <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaMoneyBillWave />
-                      </span>
-                      <input
-                        type="number"
-                        name="entryFee"
-                        value={formData.entryFee}
-                        onChange={handleChange}
-                        placeholder="0"
-                        className={`w-full border ${
-                          errors.entryFee ? 'border-red-500' : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                      />
-                    </div>
-                    {errors.entryFee && (
+                    <input
+                      type="number"
+                      name="entryFee"
+                      value={formData.entryFee}
+                      onChange={handleChange}
+                      min="0"
+                      step="1"
+                      className={getFieldClass('entryFee')}
+                    />
+                    {getFieldError('entryFee') && (
                       <p className="text-red-500 text-xs mt-1">
-                        {errors.entryFee}
+                        {getFieldError('entryFee')?.message}
                       </p>
                     )}
                   </div>
@@ -530,56 +481,23 @@ export default function CreateContest() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Total Spots <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaUsers />
-                      </span>
-                      <input
-                        type="number"
-                        name="totalSpots"
-                        value={formData.totalSpots}
-                        onChange={handleChange}
-                        placeholder="0"
-                        className={`w-full border ${
-                          errors.totalSpots
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                      />
-                    </div>
-                    {errors.totalSpots && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.totalSpots}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Winner Percentage */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Winner Percentage (%){' '}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaPercent />
-                      </span>
-                      <input
-                        type="number"
-                        name="winnerPercentage"
-                        value={formData.winnerPercentage}
-                        onChange={handleChange}
-                        placeholder="0"
-                        className={`w-full border ${
-                          errors.winnerPercentage
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                      />
-                    </div>
-                    {errors.winnerPercentage && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.winnerPercentage}
+                    <input
+                      type="number"
+                      name="totalSpots"
+                      value={formData.totalSpots}
+                      onChange={handleChange}
+                      min="2"
+                      className={getFieldClass('totalSpots')}
+                    />
+                    {getFieldError('totalSpots') && (
+                      <p
+                        className={`text-xs mt-1 ${
+                          getFieldError('totalSpots')?.severity === 'error'
+                            ? 'text-red-500'
+                            : 'text-yellow-600'
+                        }`}
+                      >
+                        {getFieldError('totalSpots')?.message}
                       </p>
                     )}
                   </div>
@@ -587,185 +505,250 @@ export default function CreateContest() {
                   {/* Platform Commission */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Platform Commission (%){' '}
-                      <span className="text-red-500">*</span>
+                      Platform Commission (%)
                     </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaPercent />
-                      </span>
-                      <input
-                        type="number"
-                        name="platformCommission"
-                        value={formData.platformCommission}
-                        onChange={handleChange}
-                        placeholder="15"
-                        className={`w-full border ${
-                          errors.platformCommission
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                      />
-                    </div>
-                    {errors.platformCommission && (
+                    <input
+                      type="number"
+                      name="platformCommission"
+                      value={formData.platformCommission}
+                      onChange={handleChange}
+                      min="0"
+                      max="30"
+                      className={getFieldClass('platformCommission')}
+                    />
+                    {getFieldError('platformCommission') && (
                       <p className="text-red-500 text-xs mt-1">
-                        {errors.platformCommission}
+                        {getFieldError('platformCommission')?.message}
                       </p>
                     )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Recommended: 15-20% for sustainable operations
+                    </p>
                   </div>
 
-                  {/* First Prize Percentage */}
+                  {/* Prize Pool - Calculated */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      First Prize Percentage (%){' '}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaPercent />
-                      </span>
-                      <input
-                        type="number"
-                        name="firstPrizePercentage"
-                        value={formData.firstPrizePercentage}
-                        onChange={handleChange}
-                        placeholder="15"
-                        className={`w-full border ${
-                          errors.firstPrizePercentage
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                      />
-                    </div>
-                    {errors.firstPrizePercentage && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.firstPrizePercentage}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Prize Pool */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Prize Pool (₹) <span className="text-red-500">*</span>
+                      Prize Pool (₹)
                     </label>
                     <input
                       type="number"
                       name="prizePool"
                       value={formData.prizePool}
-                      onChange={handleChange}
-                      placeholder="0"
-                      className={`w-full border ${
-                        errors.prizePool ? 'border-red-500' : 'border-gray-300'
-                      } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                       readOnly
+                      className="w-full border border-gray-300 bg-gray-50 rounded-md px-3 py-2"
                     />
-                    {errors.prizePool && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.prizePool}
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Calculated: Entry Fee × Total Spots × (1 - Commission%)
+                    </p>
                   </div>
 
-                  {/* First Prize */}
+                  {/* Winner Percentage */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      First Prize (₹) <span className="text-red-500">*</span>
+                      Winner Percentage (%)
                     </label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                        <FaTrophy />
-                      </span>
-                      <input
-                        type="number"
-                        name="firstPrize"
-                        value={formData.firstPrize}
-                        onChange={handleChange}
-                        placeholder="0"
-                        className={`w-full border ${
-                          errors.firstPrize
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                        readOnly
-                      />
-                    </div>
-                    {errors.firstPrize && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.firstPrize}
+                    <input
+                      type="number"
+                      name="winnerPercentage"
+                      value={formData.winnerPercentage}
+                      onChange={handleChange}
+                      min="0.1"
+                      max="100"
+                      step="0.1"
+                      className={getFieldClass('winnerPercentage')}
+                    />
+                    {getFieldError('winnerPercentage') && (
+                      <p
+                        className={`text-xs mt-1 ${
+                          getFieldError('winnerPercentage')?.severity ===
+                          'error'
+                            ? 'text-red-500'
+                            : 'text-yellow-600'
+                        }`}
+                      >
+                        {getFieldError('winnerPercentage')?.message}
                       </p>
                     )}
                   </div>
 
-                  {/* Winner Count */}
+                  {/* Winner Count - Calculated */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Winner Count <span className="text-red-500">*</span>
+                      Winner Count
                     </label>
                     <input
                       type="number"
                       name="winnerCount"
                       value={formData.winnerCount}
-                      onChange={handleChange}
-                      placeholder="0"
-                      className={`w-full border ${
-                        errors.winnerCount
-                          ? 'border-red-500'
-                          : 'border-gray-300'
-                      } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                       readOnly
+                      className="w-full border border-gray-300 bg-gray-50 rounded-md px-3 py-2"
                     />
-                    {errors.winnerCount && (
+                    {getFieldError('winnerCount') && (
+                      <p
+                        className={`text-xs mt-1 ${
+                          getFieldError('winnerCount')?.severity === 'error'
+                            ? 'text-red-500'
+                            : 'text-yellow-600'
+                        }`}
+                      >
+                        {getFieldError('winnerCount')?.message}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Calculated: (Winner Percentage% × Total Spots) rounded
+                      down
+                    </p>
+                  </div>
+
+                  {/* First Prize Amount */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Prize Amount (₹){' '}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      name="firstPrize"
+                      value={formData.firstPrize}
+                      onChange={handleChange}
+                      min="0"
+                      className={getFieldClass('firstPrize')}
+                    />
+                    {getFieldError('firstPrize') && (
                       <p className="text-red-500 text-xs mt-1">
-                        {errors.winnerCount}
+                        {getFieldError('firstPrize')?.message}
                       </p>
                     )}
                   </div>
 
                   {/* Is Guaranteed */}
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="isGuaranteed"
-                      name="isGuaranteed"
-                      checked={formData.isGuaranteed}
-                      onChange={handleChange}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label
-                      htmlFor="isGuaranteed"
-                      className="ml-2 block text-sm text-gray-700"
-                    >
-                      Guaranteed Contest
+                  <div>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="isGuaranteed"
+                        checked={formData.isGuaranteed}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            isGuaranteed: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        Guaranteed Contest (will run even if not filled)
+                      </span>
                     </label>
+                  </div>
+
+                  {/* Prize Structure */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Prize Distribution Structure
+                    </label>
+                    <select
+                      name="prizeStructure"
+                      value={formData.prizeStructure}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="topHeavy">
+                        Top Heavy (bigger prizes for top ranks)
+                      </option>
+                      <option value="balanced">
+                        Balanced (even distribution)
+                      </option>
+                      <option value="distributed">
+                        Widely Distributed (more winners get good prizes)
+                      </option>
+                      <option value="winnerTakesAll">
+                        Winner Takes All (first prize only)
+                      </option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Determines how prize money is distributed among winners
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-8 flex justify-end">
+                {/* Prize Breakup Preview */}
+                <div className="mt-8 border-t pt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Prize Distribution Preview
+                    <button
+                      type="button"
+                      onClick={generatePrizeBreakupPreview}
+                      className="ml-4 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded-md"
+                    >
+                      Refresh Preview
+                    </button>
+                  </h3>
+
+                  {loadingPreview ? (
+                    <div className="text-center py-4">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Generating prize breakup...
+                      </p>
+                    </div>
+                  ) : prizeBreakup.length > 0 ? (
+                    <PrizeBreakupPreview
+                      prizeBreakup={prizeBreakup}
+                      totalPrize={formData.totalPrize}
+                      winnerCount={formData.winnerCount}
+                    />
+                  ) : (
+                    <p className="text-gray-500 italic">
+                      Enter all required fields to see prize breakup preview
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-8 flex justify-between">
                   <button
                     type="button"
-                    onClick={() => router.push('/admin/contests')}
-                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2"
+                    onClick={() => setActiveTab('templates')}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md"
                   >
-                    Cancel
+                    Back to Templates
                   </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md flex items-center"
-                  >
-                    {loading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <FaSave className="mr-2" />
-                        Create Contest
-                      </>
-                    )}
-                  </button>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/admin/contests')}
+                      className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        loading ||
+                        validationErrors.some((e) => e.severity === 'error')
+                      }
+                      className={`${
+                        loading ||
+                        validationErrors.some((e) => e.severity === 'error')
+                          ? 'bg-indigo-400 cursor-not-allowed'
+                          : 'bg-indigo-600 hover:bg-indigo-700'
+                      } text-white px-4 py-2 rounded-md flex items-center`}
+                    >
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <FaSave className="mr-2" />
+                          Create Contest
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

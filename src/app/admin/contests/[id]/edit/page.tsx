@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FaArrowLeft,
@@ -11,6 +11,13 @@ import {
   FaTrophy,
 } from 'react-icons/fa';
 import Link from 'next/link';
+import {
+  calculateContestFields,
+  validateContestForm,
+  ValidationError,
+} from '@/utils/contest-validation';
+import PrizeBreakupPreview from '@/components/contests/PrizeBreakupPreview';
+import { PrizeItem } from '@/utils/prize-generation';
 
 // Define interfaces
 interface Match {
@@ -19,21 +26,6 @@ interface Match {
   teamAName: string;
   teamBName: string;
   startTime: string;
-}
-
-interface ContestFormData {
-  matchId: string;
-  name: string;
-  entryFee: number;
-  totalSpots: number;
-  prizePool: number;
-  totalPrize: number;
-  firstPrize: number;
-  winnerPercentage: number;
-  isGuaranteed: boolean;
-  winnerCount: number;
-  status: string;
-  filledSpots: number;
 }
 
 interface FormErrors {
@@ -49,13 +41,46 @@ interface FormErrors {
   [key: string]: string | undefined;
 }
 
+// ContestFormData interface
+interface ContestFormData {
+  id: string;
+  matchId: string;
+  name: string;
+  entryFee: number;
+  totalSpots: number;
+  prizePool: number;
+  totalPrize: number;
+  firstPrize: number;
+  winnerPercentage: number;
+  winnerCount: number;
+  isActive: boolean;
+  isPrivate: boolean;
+  isMegaContest: boolean;
+  allowMultipleEntries: boolean;
+  maxEntriesPerUser: number;
+  firstPrizePercentage: number;
+  platformCommission: number;
+  prizeStructure: string;
+  description?: string;
+  isGuaranteed: boolean;
+  status: string;
+  filledSpots: number;
+}
+
 export default function EditContest({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingContest, setLoadingContest] = useState<boolean>(true);
   const [matches, setMatches] = useState<Match[]>([]);
   const [isEditable, setIsEditable] = useState<boolean>(true);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
+    []
+  );
+  const [prizeBreakup, setPrizeBreakup] = useState<PrizeItem[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
+
   const [formData, setFormData] = useState<ContestFormData>({
+    id: '',
     matchId: '',
     name: '',
     entryFee: 0,
@@ -64,8 +89,17 @@ export default function EditContest({ params }: { params: { id: string } }) {
     totalPrize: 0,
     firstPrize: 0,
     winnerPercentage: 0,
-    isGuaranteed: false,
     winnerCount: 0,
+    isActive: false,
+    isPrivate: false,
+    isMegaContest: false,
+    allowMultipleEntries: false,
+    maxEntriesPerUser: 1,
+    firstPrizePercentage: 15,
+    platformCommission: 15,
+    prizeStructure: 'balanced',
+    description: '',
+    isGuaranteed: false,
     status: 'upcoming',
     filledSpots: 0,
   });
@@ -88,7 +122,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
     const fetchContest = async () => {
       setLoadingContest(true);
       try {
-        const response = await fetch(`/api/contests/${params.id}`);
+        const response = await fetch(`/api/admin/contests/${params.id}`);
         if (!response.ok) throw new Error('Failed to fetch contest');
         const data = await response.json();
 
@@ -96,20 +130,59 @@ export default function EditContest({ params }: { params: { id: string } }) {
         const hasParticipants = data.filledSpots > 0;
         setIsEditable(!hasParticipants || data.status === 'upcoming');
 
+        // Default values for new fields if they don't exist in the response
+        const contestData = {
+          ...data,
+          id: data.id || '',
+          firstPrizePercentage: data.firstPrizePercentage || 15,
+          platformCommission: data.platformCommission || 15,
+          prizeStructure: data.prizeStructure || 'balanced',
+          description: data.description || '',
+          isActive: data.isActive || false,
+          isPrivate: data.isPrivate || false,
+          isMegaContest: data.isMegaContest || false,
+          allowMultipleEntries: data.allowMultipleEntries || false,
+          maxEntriesPerUser: data.maxEntriesPerUser || 1,
+          filledSpots: data.filledSpots || 0,
+        };
+
         setFormData({
-          matchId: data.matchId,
-          name: data.name,
-          entryFee: data.entryFee,
-          totalSpots: data.totalSpots,
-          prizePool: data.prizePool,
-          totalPrize: data.totalPrize,
-          firstPrize: data.firstPrize,
-          winnerPercentage: data.winnerPercentage,
-          isGuaranteed: data.isGuaranteed,
-          winnerCount: data.winnerCount,
-          status: data.status,
-          filledSpots: data.filledSpots,
+          id: contestData.id,
+          matchId: contestData.matchId,
+          name: contestData.name,
+          entryFee: contestData.entryFee,
+          totalSpots: contestData.totalSpots,
+          prizePool: contestData.prizePool,
+          totalPrize: contestData.totalPrize,
+          firstPrize: contestData.firstPrize,
+          winnerPercentage: contestData.winnerPercentage,
+          winnerCount: contestData.winnerCount,
+          isActive: contestData.isActive,
+          isPrivate: contestData.isPrivate,
+          isMegaContest: contestData.isMegaContest,
+          allowMultipleEntries: contestData.allowMultipleEntries,
+          maxEntriesPerUser: contestData.maxEntriesPerUser,
+          firstPrizePercentage: contestData.firstPrizePercentage,
+          platformCommission: contestData.platformCommission,
+          prizeStructure: contestData.prizeStructure,
+          description: contestData.description,
+          isGuaranteed: contestData.isGuaranteed,
+          status: contestData.status,
+          filledSpots: contestData.filledSpots,
         });
+
+        // Also fetch prize breakup
+        try {
+          const prizeResponse = await fetch(
+            `/api/admin/contests/${params.id}/prizes`
+          );
+          if (prizeResponse.ok) {
+            const prizeData = await prizeResponse.json();
+            setPrizeBreakup(prizeData);
+          }
+        } catch (prizeError) {
+          console.error('Error fetching prize breakup:', prizeError);
+        }
       } catch (error) {
         console.error('Error fetching contest:', error);
         alert('Failed to fetch contest data');
@@ -123,72 +196,198 @@ export default function EditContest({ params }: { params: { id: string } }) {
     fetchContest();
   }, [params.id, router]);
 
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
-
-    const newValue =
-      type === 'checkbox'
-        ? checked
-        : type === 'number'
-        ? parseFloat(value)
-        : value;
-
-    const updatedFormData = {
-      ...formData,
-      [name]: newValue,
-    };
-
-    // Calculate derived values when relevant fields change
+  // Add auto-generate preview effect when form data changes
+  useEffect(() => {
+    // Auto-generate preview when form data changes and there are no critical errors
+    const criticalErrors = validationErrors.filter(
+      (error) => error.severity === 'error'
+    );
     if (
-      name === 'entryFee' ||
-      name === 'totalSpots' ||
-      name === 'winnerPercentage'
+      criticalErrors.length === 0 &&
+      formData.matchId &&
+      formData.totalPrize > 0 &&
+      formData.winnerCount > 0 &&
+      formData.firstPrize > 0
     ) {
-      const entryFee =
-        name === 'entryFee' ? (newValue as number) : formData.entryFee;
-      const totalSpots =
-        name === 'totalSpots' ? (newValue as number) : formData.totalSpots;
-      const winnerPercentage =
-        name === 'winnerPercentage'
-          ? (newValue as number)
-          : formData.winnerPercentage;
+      generatePrizeBreakupPreview();
+    }
+  }, [
+    formData.totalPrize,
+    formData.winnerCount,
+    formData.firstPrize,
+    formData.prizeStructure,
+    formData.matchId,
+    validationErrors,
+  ]);
 
-      if (entryFee > 0 && totalSpots > 0) {
-        // Calculate total prize pool (entry fee * total spots)
-        const totalPrizePool = entryFee * totalSpots;
+  // Helper for validation
+  const getFieldError = (fieldName: string) => {
+    return validationErrors.find((error) => error.field === fieldName);
+  };
 
-        // Platform takes a commission
-        const platformCommission = 15; // 15% platform fee
-        const prizePool = Math.floor(
-          totalPrizePool * ((100 - platformCommission) / 100)
-        );
+  // Helper to determine field class based on error state
+  const getFieldClass = (fieldName: string) => {
+    const error = getFieldError(fieldName);
+    return `w-full border ${
+      error
+        ? error.severity === 'error'
+          ? 'border-red-500'
+          : 'border-yellow-500'
+        : 'border-gray-300'
+    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`;
+  };
 
-        // Calculate winner count based on winner percentage (rounded down)
-        const winnerCount =
-          Math.floor((winnerPercentage / 100) * totalSpots) || 0;
+  // Update calculated fields based on core inputs
+  const updateDerivedFields = () => {
+    const {
+      entryFee,
+      totalSpots,
+      winnerPercentage,
+      platformCommission,
+      firstPrizePercentage,
+    } = formData;
 
-        // First prize is typically 15-20% of the prize pool for larger contests
-        const firstPrizePercentage =
-          winnerCount > 100
-            ? 15
-            : winnerCount > 10
-            ? 25
-            : winnerCount > 1
-            ? 40
-            : 100;
-        const firstPrize = Math.floor(prizePool * (firstPrizePercentage / 100));
-
-        updatedFormData.winnerCount = winnerCount;
-        updatedFormData.totalPrize = prizePool;
-        updatedFormData.prizePool = prizePool;
-        updatedFormData.firstPrize = firstPrize;
-      }
+    // Skip calculation if core inputs are invalid
+    if (
+      entryFee <= 0 ||
+      totalSpots <= 0 ||
+      winnerPercentage <= 0 ||
+      winnerPercentage > 100 ||
+      platformCommission < 0 ||
+      platformCommission > 30 ||
+      firstPrizePercentage <= 0 ||
+      firstPrizePercentage > 100
+    ) {
+      return;
     }
 
+    // Calculate derived fields
+    const derivedFields = calculateContestFields(
+      entryFee,
+      totalSpots,
+      winnerPercentage,
+      platformCommission,
+      firstPrizePercentage
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      ...derivedFields,
+    }));
+
+    // Validate the updated form
+    const errors = validateContestForm({
+      ...formData,
+      ...derivedFields,
+    });
+
+    setValidationErrors(errors);
+  };
+
+  // Update form field values and trigger validation
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target;
+    let updatedFormData = { ...formData };
+
+    // Handle checkbox inputs
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      updatedFormData = { ...updatedFormData, [name]: checked };
+    }
+    // Handle numeric inputs
+    else if (
+      [
+        'entryFee',
+        'totalSpots',
+        'winnerPercentage',
+        'platformCommission',
+        'firstPrizePercentage',
+      ].includes(name)
+    ) {
+      // For percentage fields, don't allow values over 100
+      if (
+        (name === 'winnerPercentage' || name === 'firstPrizePercentage') &&
+        parseFloat(value) > 100
+      ) {
+        updatedFormData = { ...updatedFormData, [name]: 100 };
+      } else {
+        updatedFormData = {
+          ...updatedFormData,
+          [name]: value === '' ? 0 : parseFloat(value),
+        };
+      }
+    }
+    // Handle other inputs
+    else {
+      updatedFormData = { ...updatedFormData, [name]: value };
+    }
+
+    // Update form data
     setFormData(updatedFormData);
+
+    // Re-validate the form
+    setTimeout(() => {
+      // Only calculate derived fields for certain fields
+      if (
+        [
+          'entryFee',
+          'totalSpots',
+          'winnerPercentage',
+          'platformCommission',
+          'firstPrizePercentage',
+        ].includes(name)
+      ) {
+        updateDerivedFields();
+      } else {
+        const errors = validateContestForm(updatedFormData);
+        setValidationErrors(errors);
+      }
+    }, 0);
+  };
+
+  // Generate prize breakup preview
+  const generatePrizeBreakupPreview = async () => {
+    setLoadingPreview(true);
+
+    console.log('Generating preview with:', {
+      matchId: formData.matchId,
+      totalPrize: formData.totalPrize,
+      winnerCount: formData.winnerCount,
+      entryFee: formData.entryFee,
+    });
+
+    try {
+      // Make sure we have the required fields
+      if (
+        !formData.totalPrize ||
+        !formData.winnerCount ||
+        !formData.firstPrize
+      ) {
+        console.error('Missing required fields for prize breakup');
+        setPrizeBreakup([]);
+        return;
+      }
+
+      const prizeBreakup = await fetchPrizeBreakupPreview({
+        totalPrize: formData.totalPrize,
+        winnerCount: formData.winnerCount,
+        firstPrize: formData.firstPrize,
+        entryFee: formData.entryFee,
+        prizeStructure: formData.prizeStructure,
+      });
+
+      console.log('Received prize breakup:', prizeBreakup);
+      setPrizeBreakup(prizeBreakup);
+    } catch (error) {
+      console.error('Error generating prize breakup preview:', error);
+      alert(
+        'Failed to generate prize breakup. Please try again or contact support.'
+      );
+    } finally {
+      setLoadingPreview(false);
+    }
   };
 
   const validateForm = (): boolean => {
@@ -298,11 +497,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
                     value={formData.matchId}
                     onChange={handleChange}
                     disabled={!isEditable}
-                    className={`w-full border ${
-                      errors.matchId ? 'border-red-500' : 'border-gray-300'
-                    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      !isEditable ? 'bg-gray-100 opacity-75' : ''
-                    }`}
+                    className={getFieldClass('matchId')}
                   >
                     <option value="">Select a match</option>
                     {matches.map((match) => (
@@ -311,9 +506,9 @@ export default function EditContest({ params }: { params: { id: string } }) {
                       </option>
                     ))}
                   </select>
-                  {errors.matchId && (
+                  {getFieldError('matchId') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.matchId}
+                      {getFieldError('matchId')?.message || ''}
                     </p>
                   )}
                 </div>
@@ -329,12 +524,12 @@ export default function EditContest({ params }: { params: { id: string } }) {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="e.g. Grand Prize Pool"
-                    className={`w-full border ${
-                      errors.name ? 'border-red-500' : 'border-gray-300'
-                    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                    className={getFieldClass('name')}
                   />
-                  {errors.name && (
-                    <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                  {getFieldError('name') && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {getFieldError('name')?.message || ''}
+                    </p>
                   )}
                 </div>
 
@@ -354,16 +549,12 @@ export default function EditContest({ params }: { params: { id: string } }) {
                       onChange={handleChange}
                       disabled={!isEditable}
                       placeholder="0"
-                      className={`w-full border ${
-                        errors.entryFee ? 'border-red-500' : 'border-gray-300'
-                      } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        !isEditable ? 'bg-gray-100 opacity-75' : ''
-                      }`}
+                      className={getFieldClass('entryFee')}
                     />
                   </div>
-                  {errors.entryFee && (
+                  {getFieldError('entryFee') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.entryFee}
+                      {getFieldError('entryFee')?.message || ''}
                     </p>
                   )}
                 </div>
@@ -384,16 +575,12 @@ export default function EditContest({ params }: { params: { id: string } }) {
                       onChange={handleChange}
                       disabled={!isEditable}
                       placeholder="0"
-                      className={`w-full border ${
-                        errors.totalSpots ? 'border-red-500' : 'border-gray-300'
-                      } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        !isEditable ? 'bg-gray-100 opacity-75' : ''
-                      }`}
+                      className={getFieldClass('totalSpots')}
                     />
                   </div>
-                  {errors.totalSpots && (
+                  {getFieldError('totalSpots') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.totalSpots}
+                      {getFieldError('totalSpots')?.message || ''}
                     </p>
                   )}
                 </div>
@@ -410,15 +597,11 @@ export default function EditContest({ params }: { params: { id: string } }) {
                     onChange={handleChange}
                     disabled={!isEditable}
                     placeholder="0"
-                    className={`w-full border ${
-                      errors.prizePool ? 'border-red-500' : 'border-gray-300'
-                    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      !isEditable ? 'bg-gray-100 opacity-75' : ''
-                    }`}
+                    className={getFieldClass('prizePool')}
                   />
-                  {errors.prizePool && (
+                  {getFieldError('prizePool') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.prizePool}
+                      {getFieldError('prizePool')?.message || ''}
                     </p>
                   )}
                 </div>
@@ -426,26 +609,20 @@ export default function EditContest({ params }: { params: { id: string } }) {
                 {/* First Prize */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Prize (₹) <span className="text-red-500">*</span>
+                    First Prize Amount (₹){' '}
+                    <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                      <FaTrophy />
-                    </span>
-                    <input
-                      type="number"
-                      name="firstPrize"
-                      value={formData.firstPrize}
-                      onChange={handleChange}
-                      placeholder="0"
-                      className={`w-full border ${
-                        errors.firstPrize ? 'border-red-500' : 'border-gray-300'
-                      } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                    />
-                  </div>
-                  {errors.firstPrize && (
+                  <input
+                    type="number"
+                    name="firstPrize"
+                    value={formData.firstPrize}
+                    onChange={handleChange}
+                    min="0"
+                    className={getFieldClass('firstPrize')}
+                  />
+                  {getFieldError('firstPrize') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.firstPrize}
+                      {getFieldError('firstPrize')?.message}
                     </p>
                   )}
                 </div>
@@ -467,18 +644,12 @@ export default function EditContest({ params }: { params: { id: string } }) {
                       onChange={handleChange}
                       disabled={!isEditable}
                       placeholder="0"
-                      className={`w-full border ${
-                        errors.winnerPercentage
-                          ? 'border-red-500'
-                          : 'border-gray-300'
-                      } rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        !isEditable ? 'bg-gray-100 opacity-75' : ''
-                      }`}
+                      className={getFieldClass('winnerPercentage')}
                     />
                   </div>
-                  {errors.winnerPercentage && (
+                  {getFieldError('winnerPercentage') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.winnerPercentage}
+                      {getFieldError('winnerPercentage')?.message || ''}
                     </p>
                   )}
                 </div>
@@ -495,15 +666,11 @@ export default function EditContest({ params }: { params: { id: string } }) {
                     onChange={handleChange}
                     disabled={!isEditable}
                     placeholder="0"
-                    className={`w-full border ${
-                      errors.winnerCount ? 'border-red-500' : 'border-gray-300'
-                    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      !isEditable ? 'bg-gray-100 opacity-75' : ''
-                    }`}
+                    className={getFieldClass('winnerCount')}
                   />
-                  {errors.winnerCount && (
+                  {getFieldError('winnerCount') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {errors.winnerCount}
+                      {getFieldError('winnerCount')?.message || ''}
                     </p>
                   )}
                 </div>
@@ -542,6 +709,39 @@ export default function EditContest({ params }: { params: { id: string } }) {
                 )}
               </div>
 
+              {/* Add Prize Distribution Preview section */}
+              <div className="mt-8 border-t pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Prize Distribution Preview
+                  <button
+                    type="button"
+                    onClick={generatePrizeBreakupPreview}
+                    className="ml-4 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded-md"
+                  >
+                    Refresh Preview
+                  </button>
+                </h3>
+
+                {loadingPreview ? (
+                  <div className="text-center py-4">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Generating prize breakup...
+                    </p>
+                  </div>
+                ) : prizeBreakup.length > 0 ? (
+                  <PrizeBreakupPreview
+                    prizeBreakup={prizeBreakup}
+                    totalPrize={formData.totalPrize}
+                    winnerCount={formData.winnerCount}
+                  />
+                ) : (
+                  <p className="text-gray-500 italic">
+                    Enter all required fields to see prize breakup preview
+                  </p>
+                )}
+              </div>
+
               <div className="mt-8 flex justify-end">
                 <button
                   type="button"
@@ -575,3 +775,27 @@ export default function EditContest({ params }: { params: { id: string } }) {
     </div>
   );
 }
+
+// New helper function for fetching prize breakup preview
+const fetchPrizeBreakupPreview = async (params: {
+  totalPrize: number;
+  winnerCount: number;
+  firstPrize: number;
+  entryFee: number;
+  prizeStructure: string;
+}): Promise<PrizeItem[]> => {
+  const response = await fetch('/api/admin/preview-prize-breakup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch prize breakup preview');
+  }
+
+  const data = await response.json();
+  return data;
+};
