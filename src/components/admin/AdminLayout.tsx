@@ -39,9 +39,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <Button color="inherit" component={Link} href="/admin">
             Dashboard
           </Button>
-          <Button color="inherit" component={Link} href="/admin/wallet-fix">
-            Wallet Fix
-          </Button>
           <Button color="inherit" component={Link} href="/admin/contests">
             Contests
           </Button>

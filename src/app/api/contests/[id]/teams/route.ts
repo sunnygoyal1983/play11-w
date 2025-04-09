@@ -79,26 +79,6 @@ export async function GET(
       );
     }
 
-    // TEMPORARY FIX: Get ALL teams for this match first to debug
-    const allTeams = await prisma.fantasyTeam.findMany({
-      where: {
-        matchId: matchId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        userId: true,
-      },
-    });
-
-    console.log(`Total teams for match ${matchId}: ${allTeams.length}`);
-    console.log(
-      `Teams by user: ${JSON.stringify(
-        allTeams.filter((t) => t.userId === session.user.id).map((t) => t.name)
-      )}`
-    );
-
     // Fetch all teams created by the user for this match
     const teams = await prisma.fantasyTeam.findMany({
       where: {
@@ -127,25 +107,50 @@ export async function GET(
             id: true,
           },
         },
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    console.log(`Found ${teams.length} teams for user ${session.user.id}`);
+    // Extra verification to ensure teams belong to the current user
+    const verifiedTeams = teams.filter(
+      (team) => team.user.id === session.user.id
+    );
 
-    // Return ALL teams for now for debugging
-    return NextResponse.json(teams);
+    if (teams.length !== verifiedTeams.length) {
+      console.error(
+        `SECURITY ISSUE: Found ${
+          teams.length - verifiedTeams.length
+        } teams that don't belong to user ${session.user.id}`
+      );
+    }
 
-    /* Commented out for debugging
+    console.log(
+      `Verified ${verifiedTeams.length} teams belonging to user ${session.user.id}`
+    );
+
     // Filter out teams that are already joined in this contest
-    const availableTeams = teams.filter(team => team.contestEntries.length === 0);
+    const availableTeams = verifiedTeams.filter(
+      (team) => team.contestEntries.length === 0
+    );
 
     console.log(`${availableTeams.length} teams available to join the contest`);
 
-    return NextResponse.json(availableTeams);
-    */
+    // Clean up the team objects before returning them to remove any sensitive data
+    const sanitizedTeams = availableTeams.map((team) => {
+      // Create a clean copy without the user data and other sensitive information
+      const { user, ...cleanTeam } = team;
+      return cleanTeam;
+    });
+
+    return NextResponse.json(sanitizedTeams);
   } catch (error) {
     console.error('Error fetching teams for contest:', error);
     return NextResponse.json(

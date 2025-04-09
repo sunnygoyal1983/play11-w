@@ -24,10 +24,11 @@ interface Match {
 
 interface PlayerStatistic {
   id: string;
-  matchId: string;
-  playerId: string;
-  playerName: string;
+  matchId?: string;
+  playerId?: string;
+  name: string;
   playerImage?: string;
+  image?: string;
   teamName: string;
   points: number;
   runs: number;
@@ -44,6 +45,7 @@ interface PlayerStatistic {
   stumpings: number;
   runOuts: number;
   isSubstitute: boolean;
+  role?: string;
 }
 
 interface UserTeam {
@@ -83,6 +85,10 @@ export default function MatchResultsPage() {
   const [playerStats, setPlayerStats] = useState<PlayerStatistic[]>([]);
   const [userTeams, setUserTeams] = useState<UserTeam[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<keyof PlayerStatistic>('points');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -139,12 +145,129 @@ export default function MatchResultsPage() {
   const getHeaderClass = (field: keyof PlayerStatistic) => {
     const baseClass =
       'px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100';
-    const position = ['playerName', 'teamName'].includes(field)
+    const position = ['name', 'teamName'].includes(field)
       ? 'text-left'
       : 'text-right';
     const active = sortField === field ? 'bg-gray-100 text-indigo-700' : '';
 
     return `${baseClass} ${position} ${active}`;
+  };
+
+  // Function to fetch player stats only
+  const fetchPlayerStats = async (forceUpdate = false) => {
+    try {
+      setRefreshing(true);
+      setStatusMessage(
+        forceUpdate
+          ? 'Requesting backend data update...'
+          : 'Refreshing player data...'
+      );
+
+      let updated = false;
+
+      // If forceUpdate is true, first trigger a backend update
+      if (forceUpdate) {
+        try {
+          console.log('Triggering backend data update...');
+          setStatusMessage('Updating player statistics from source...');
+          const updateResponse = await fetch(
+            `/api/matches/${matchId}/update-scores`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          if (updateResponse.ok) {
+            console.log('Backend update triggered successfully');
+            setStatusMessage(
+              'Backend update successful, fetching latest data...'
+            );
+            updated = true;
+          } else {
+            console.warn(
+              'Backend update request failed:',
+              await updateResponse.text()
+            );
+            setStatusMessage(
+              'Backend update failed, trying to fetch existing data...'
+            );
+          }
+        } catch (error) {
+          console.error('Error triggering backend update:', error);
+          setStatusMessage(
+            'Error updating data, trying to fetch existing data...'
+          );
+        }
+      }
+
+      // Now fetch the latest stats
+      setStatusMessage('Retrieving player statistics...');
+      const statsResponse = await fetch(
+        `/api/matches/${matchId}/stats?_t=${new Date().getTime()}`
+      );
+
+      if (statsResponse && statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        if (statsData.success && statsData.data) {
+          console.log(
+            'Refreshed player stats data:',
+            statsData.data.length,
+            'players'
+          );
+          setStatusMessage(`Found ${statsData.data.length} player records`);
+
+          // Add debug logging for the first few players
+          if (statsData.data.length > 0) {
+            console.log('Sample player data:');
+            statsData.data.slice(0, 3).forEach((player: any, index: number) => {
+              console.log(`Player ${index + 1}:`, {
+                id: player.id,
+                name: player.name,
+                teamName: player.teamName,
+                keys: Object.keys(player),
+              });
+            });
+          }
+
+          // Update state without causing a navigation
+          setPlayerStats((prevStats) => {
+            // Only update if we actually have new data
+            if (statsData.data.length > 0) {
+              setStatusMessage('Updating player data on screen...');
+              return statsData.data;
+            }
+            setStatusMessage('No new data found');
+            return prevStats;
+          });
+
+          // Update refresh indicators
+          setLastRefreshed(new Date());
+          setRefreshCount((prev) => prev + 1);
+          updated = true;
+        } else {
+          setStatusMessage('Received response but no valid data');
+        }
+      } else {
+        setStatusMessage('Failed to get response from server');
+      }
+
+      if (!updated) {
+        console.log('No data was updated during refresh');
+        setStatusMessage('No data was updated');
+      } else {
+        setStatusMessage('Data refresh complete');
+        // Clear status message after a delay
+        setTimeout(() => setStatusMessage(null), 2000);
+      }
+    } catch (error) {
+      console.error('Error refreshing player stats:', error);
+      setStatusMessage('Error refreshing data');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -193,6 +316,19 @@ export default function MatchResultsPage() {
           if (statsResponse && statsResponse.ok) {
             const statsData = await statsResponse.json();
             if (statsData.success && statsData.data) {
+              console.log('Player stats data sample:');
+              if (statsData.data.length > 0) {
+                const sample = statsData.data[0];
+                console.log('First player data:', {
+                  id: sample.id,
+                  playerId: sample.playerId,
+                  name: sample.name,
+                  image: sample.image,
+                  playerImage: sample.playerImage,
+                  teamName: sample.teamName,
+                  points: sample.points,
+                });
+              }
               setPlayerStats(statsData.data);
             }
           }
@@ -251,7 +387,7 @@ export default function MatchResultsPage() {
   };
 
   // Get default image when player image is not available
-  const getDefaultPlayerImage = (name: string) => {
+  const getDefaultPlayerImage = (name: string | undefined) => {
     if (!name)
       return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100%" height="100%" fill="%234f46e5"/><text x="50%" y="50%" font-family="Arial" font-size="35" fill="white" text-anchor="middle" dominant-baseline="middle">NA</text></svg>`;
 
@@ -473,7 +609,102 @@ export default function MatchResultsPage() {
         {/* Player Scorecard */}
         {activeTab === 'scorecard' && (
           <div>
-            <h2 className="text-xl font-bold mb-4">Player Performance</h2>
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-xl font-bold">Player Performance</h2>
+                <div className="text-xs text-gray-500 mt-1 h-4">
+                  {statusMessage ? (
+                    <span className="text-indigo-600">{statusMessage}</span>
+                  ) : lastRefreshed ? (
+                    <span>
+                      Last updated: {lastRefreshed.toLocaleTimeString()} ·
+                      Version: {refreshCount}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => fetchPlayerStats(false)}
+                  disabled={refreshing}
+                  className="flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50 text-sm"
+                  title="Refresh data from server"
+                >
+                  {refreshing ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Working...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        ></path>
+                      </svg>
+                      Refresh
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => fetchPlayerStats(true)}
+                  disabled={refreshing}
+                  className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md disabled:opacity-50 text-sm"
+                  title="Update player data from source and refresh"
+                >
+                  {refreshing ? (
+                    'Working...'
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 9l-7 7-7-7"
+                        ></path>
+                      </svg>
+                      Get Latest Data
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
 
             {playerStats.length === 0 ? (
               <div className="bg-gray-50 rounded-lg p-8 text-center">
@@ -492,11 +723,11 @@ export default function MatchResultsPage() {
                       <tr>
                         <th
                           scope="col"
-                          onClick={() => handleSortClick('playerName')}
-                          className={getHeaderClass('playerName') + ' w-1/4'}
+                          onClick={() => handleSortClick('name')}
+                          className={getHeaderClass('name') + ' w-1/4'}
                         >
                           Player
-                          <SortIndicator field="playerName" />
+                          <SortIndicator field="name" />
                         </th>
                         <th
                           scope="col"
@@ -589,23 +820,73 @@ export default function MatchResultsPage() {
                                 <Image
                                   src={
                                     player.playerImage ||
-                                    getDefaultPlayerImage(player.playerName)
+                                    player.image ||
+                                    getDefaultPlayerImage(player.name)
                                   }
-                                  alt={player.playerName}
+                                  alt={player.name || 'Player'}
                                   width={48}
                                   height={48}
                                   className="rounded-full"
                                 />
                               </div>
-                              <div className="ml-4">
+                              <div className="ml-4 group relative">
                                 <div className="text-base font-semibold text-gray-900">
-                                  {player.playerName || 'Unknown Player'}
+                                  {player.name ||
+                                    (player.id && player.id.substring(0, 8)) ||
+                                    'Player Data Missing'}
                                 </div>
                                 {player.isSubstitute && (
                                   <div className="text-xs text-gray-500 italic">
                                     (Substitute)
                                   </div>
                                 )}
+                                {!player.name && (
+                                  <div className="text-xs text-red-500">
+                                    ID: {player.id || 'Unknown'}
+                                  </div>
+                                )}
+                                {player.role && (
+                                  <div className="text-xs text-gray-500">
+                                    {player.role}
+                                  </div>
+                                )}
+
+                                {/* Debug tooltip */}
+                                <div className="absolute z-10 invisible group-hover:visible bg-gray-800 text-white text-xs rounded p-2 left-0 mt-2 min-w-[200px] shadow-lg">
+                                  <div className="font-bold border-b pb-1 mb-1">
+                                    Player Debug Info:
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold">ID:</span>{' '}
+                                    {player.id}
+                                  </div>
+                                  {player.playerId && (
+                                    <div>
+                                      <span className="font-semibold">
+                                        Player ID:
+                                      </span>{' '}
+                                      {player.playerId}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="font-semibold">Name:</span>{' '}
+                                    {player.name || 'Missing'}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold">Team:</span>{' '}
+                                    {player.teamName}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold">Role:</span>{' '}
+                                    {player.role || 'Unknown'}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold">
+                                      Fields:
+                                    </span>{' '}
+                                    {Object.keys(player).join(', ')}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </td>

@@ -60,6 +60,7 @@ interface ContestEntry {
     id: string;
     name: string;
   };
+  winAmount?: number;
 }
 
 interface Commentary {
@@ -688,10 +689,14 @@ export default function ContestPage({ params }: { params: { id: string } }) {
                             <td className="py-3 px-4 text-right">
                               {entry.rank &&
                               contest.match?.status === 'completed'
-                                ? `₹${
-                                    getPrizeForRank(entry.rank, prizeBreakup) ||
-                                    0
-                                  }`
+                                ? entry.winAmount
+                                  ? `₹${entry.winAmount}`
+                                  : `₹${
+                                      getPrizeForRank(
+                                        entry.rank,
+                                        prizeBreakup
+                                      ) || 0
+                                    }`
                                 : '-'}
                             </td>
                           </tr>

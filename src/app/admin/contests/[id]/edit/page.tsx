@@ -363,7 +363,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
         return;
       }
 
-      const prizeBreakup = await fetchPrizeBreakupPreview({
+      const response = await fetchPrizeBreakupPreview({
         totalPrize: formData.totalPrize,
         winnerCount: formData.winnerCount,
         firstPrize: formData.firstPrize,
@@ -371,11 +371,12 @@ export default function EditContest({ params }: { params: { id: string } }) {
         prizeStructure: formData.prizeStructure,
       });
 
-      console.log('Received prize breakup:', prizeBreakup);
+      const { prizeBreakup } = response;
+
       if (Array.isArray(prizeBreakup)) {
         setPrizeBreakup(prizeBreakup);
       } else {
-        console.error('Invalid prize breakup data:', prizeBreakup);
+        console.error('Invalid prize breakup data:', response);
         setPrizeBreakup([]);
       }
     } catch (error) {
@@ -813,7 +814,7 @@ const fetchPrizeBreakupPreview = async (params: {
   firstPrize: number;
   entryFee: number;
   prizeStructure: string;
-}): Promise<PrizeItem[]> => {
+}): Promise<{ prizeBreakup: PrizeItem[] }> => {
   console.log('Fetching prize breakup with params:', params);
 
   const response = await fetch('/api/admin/preview-prize-breakup', {

@@ -90,122 +90,32 @@ export default function ContestJoinPage({
           `Fetching teams for match: ${matchId}, user: ${session?.user?.email}, userId: ${session?.user?.id}`
         );
 
-        // Try multiple methods to fetch teams
-        let teamsData: any[] = [];
-        let fetchSuccess = false;
+        // Only use the dedicated endpoint for contest teams
+        const requestUrl = `/api/contests/${params.id}/teams?matchId=${matchId}`;
+        console.log(`Using dedicated contest teams endpoint: ${requestUrl}`);
 
-        // First try our new dedicated endpoint for contest teams
-        try {
-          const requestUrl = `/api/contests/${params.id}/teams?matchId=${matchId}`;
-          console.log(`Trying dedicated contest teams endpoint: ${requestUrl}`);
+        const response = await fetch(requestUrl, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            // Include a custom header with the session info for debugging
+            'X-Session-User-Id': session?.user?.id || 'no-id',
+            'X-Session-User-Email': session?.user?.email || 'no-email',
+          },
+        });
 
-          const response = await fetch(requestUrl, {
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              // Include a custom header with the session info for debugging
-              'X-Session-User-Id': session?.user?.id || 'no-id',
-              'X-Session-User-Email': session?.user?.email || 'no-email',
-            },
-          });
+        console.log('Contest teams API response status:', response.status);
 
-          console.log('Contest teams API response status:', response.status);
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Teams data from contest teams API:', data);
-            if (Array.isArray(data) && data.length > 0) {
-              teamsData = data;
-              fetchSuccess = true;
-            }
-          } else {
-            const errorText = await response.text();
-            console.warn(
-              'Contest teams API error:',
-              response.status,
-              errorText
-            );
-          }
-        } catch (err) {
-          console.error('Error fetching from contest teams API:', err);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Teams data from contest teams API:', data);
+          // Ensure data is an array before setting it
+          setTeams(Array.isArray(data) ? data : []);
+        } else {
+          const errorText = await response.text();
+          console.error('Contest teams API error:', response.status, errorText);
+          setTeams([]);
         }
-
-        // Fallback to other methods if needed
-        if (!fetchSuccess) {
-          // Method 1: Try the teams API
-          try {
-            const response = await fetch(`/api/teams?matchId=${matchId}`, {
-              credentials: 'include', // Include credentials for auth
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            });
-
-            console.log('Teams API response status:', response.status);
-
-            if (response.ok) {
-              const data = await response.json();
-              console.log('Teams data from API:', data);
-              if (Array.isArray(data) && data.length > 0) {
-                teamsData = data;
-                fetchSuccess = true;
-              }
-            } else {
-              console.warn('Teams API response not OK:', response.status);
-            }
-          } catch (err) {
-            console.error('Error fetching from teams API:', err);
-          }
-        }
-
-        // Method 2: If first method failed, try user's teams for this match
-        if (!fetchSuccess) {
-          try {
-            console.log('Trying to fetch user teams for match');
-            const response = await fetch(`/api/user/teams?matchId=${matchId}`, {
-              credentials: 'include',
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              console.log('User teams data:', data);
-              if (Array.isArray(data.teams)) {
-                teamsData = data.teams;
-                fetchSuccess = true;
-              }
-            }
-          } catch (err) {
-            console.error('Error fetching user teams:', err);
-          }
-        }
-
-        // Method 3: As a last resort, fetch from user profile teams
-        if (!fetchSuccess) {
-          try {
-            console.log('Trying to fetch from user profile');
-            const response = await fetch(`/api/user/profile`, {
-              credentials: 'include',
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              console.log('User profile data:', data);
-              if (data.fantasyTeams && Array.isArray(data.fantasyTeams)) {
-                // Filter teams for this match if possible
-                teamsData = data.fantasyTeams.filter(
-                  (team: any) => team.matchId === matchId || !team.matchId
-                );
-                fetchSuccess = true;
-              }
-            }
-          } catch (err) {
-            console.error('Error fetching from user profile:', err);
-          }
-        }
-
-        console.log('Final teams data:', teamsData);
-        // Ensure data is an array before setting it
-        setTeams(Array.isArray(teamsData) ? teamsData : []);
       } catch (err) {
         console.error('Error loading teams:', err);
         setTeams([]); // Set empty array in case of error

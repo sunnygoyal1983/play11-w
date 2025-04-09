@@ -209,6 +209,13 @@ export async function GET(
       }
     );
 
+    // Log winAmount values for debugging
+    sortedEntries.forEach((entry) => {
+      console.log(
+        `[Contest Entries API] Entry ID: ${entry.id}, Rank: ${entry.rank}, winAmount: ${entry.winAmount}, Team: ${entry.fantasyTeam.name}, User: ${entry.user.name}`
+      );
+    });
+
     console.log(
       `[Contest Entries API] Successfully prepared response for contest ${contestId}`
     );

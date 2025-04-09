@@ -1294,6 +1294,7 @@ async function ensurePlayersExist(
         id: true,
         sportMonkId: true,
         role: true,
+        name: true,
       },
     });
 
@@ -1318,57 +1319,137 @@ async function ensurePlayersExist(
         `Found ${missingPlayerIds.length} players missing from our database`
       );
 
-      // Process lineup to get player data
-      const lineup = matchData.lineup || [];
+      // Process various data sources to get player info
       const playersToCreate = [];
 
-      // Find player data from lineup
-      for (const id of missingPlayerIds) {
-        const playerData = lineup.find((p: any) => p.id === id);
+      // Create lookup maps from all available data sources
+      const lineup = matchData.lineup || [];
+      const batting = matchData.batting || [];
+      const bowling = matchData.bowling || [];
 
-        if (playerData) {
-          // Determine team and role
-          const teamId = playerData.lineup?.team_id?.toString();
-          let teamName = '';
-          let role = 'Unknown';
+      // Find player data from all available sources
+      for (const id of missingPlayerIds) {
+        const idStr = id.toString();
+        let playerName = null;
+        let playerImage = null;
+        let teamId = null;
+        let teamName = '';
+        let role = 'Unknown';
+
+        // Try to find player in lineup (most complete data)
+        const playerInLineup = lineup.find((p: any) => p.id === id);
+
+        // Try to find player in batting data
+        const playerInBatting = batting.find(
+          (p: any) => p.batsman?.id === id || p.player_id === id
+        );
+
+        // Try to find player in bowling data
+        const playerInBowling = bowling.find(
+          (p: any) => p.bowler?.id === id || p.player_id === id
+        );
+
+        if (playerInLineup) {
+          // Get data from lineup
+          playerName = playerInLineup.fullname || playerInLineup.name;
+          playerImage = playerInLineup.image_path;
+          teamId = playerInLineup.lineup?.team_id?.toString();
 
           // Try to determine team name
-          if (matchData.localteam && matchData.localteam.id === teamId) {
+          if (
+            matchData.localteam &&
+            matchData.localteam.id.toString() === teamId
+          ) {
             teamName = matchData.localteam.name;
           } else if (
             matchData.visitorteam &&
-            matchData.visitorteam.id === teamId
+            matchData.visitorteam.id.toString() === teamId
           ) {
             teamName = matchData.visitorteam.name;
           }
 
           // Try to determine role from position
-          if (playerData.position) {
-            const pos = playerData.position.toLowerCase();
+          if (playerInLineup.position) {
+            const pos = playerInLineup.position.toLowerCase();
             if (pos.includes('bat')) role = 'BAT';
             else if (pos.includes('bowl')) role = 'BOWL';
             else if (pos.includes('all')) role = 'AR';
             else if (pos.includes('keep')) role = 'WK';
           }
+        } else if (playerInBatting) {
+          // Get data from batting records
+          playerName =
+            playerInBatting.batsman?.fullname || playerInBatting.name;
+          playerImage = playerInBatting.batsman?.image_path;
+          role = 'BAT'; // Assume batsman role
 
+          // Try to determine team
+          if (playerInBatting.team_id) {
+            teamId = playerInBatting.team_id.toString();
+
+            // Get team name
+            if (
+              matchData.localteam &&
+              matchData.localteam.id.toString() === teamId
+            ) {
+              teamName = matchData.localteam.name;
+            } else if (
+              matchData.visitorteam &&
+              matchData.visitorteam.id.toString() === teamId
+            ) {
+              teamName = matchData.visitorteam.name;
+            }
+          }
+        } else if (playerInBowling) {
+          // Get data from bowling records
+          playerName = playerInBowling.bowler?.fullname || playerInBowling.name;
+          playerImage = playerInBowling.bowler?.image_path;
+          role = 'BOWL'; // Assume bowler role
+
+          // Try to determine team
+          if (playerInBowling.team_id) {
+            teamId = playerInBowling.team_id.toString();
+
+            // Get team name
+            if (
+              matchData.localteam &&
+              matchData.localteam.id.toString() === teamId
+            ) {
+              teamName = matchData.localteam.name;
+            } else if (
+              matchData.visitorteam &&
+              matchData.visitorteam.id.toString() === teamId
+            ) {
+              teamName = matchData.visitorteam.name;
+            }
+          }
+        }
+
+        // If we found any player data, create a new player
+        if (playerName) {
           playersToCreate.push({
-            sportMonkId: id.toString(),
-            name: playerData.fullname || `Player ${id}`,
-            image: playerData.image_path,
+            sportMonkId: idStr,
+            name: playerName || `Player ${idStr}`,
+            image: playerImage,
             country: null,
             teamId: teamId,
-            teamName: teamName,
+            teamName: teamName || null,
             role: role,
             isActive: true,
           });
-        } else {
-          // If player not found in lineup, create with minimal data
           console.log(
-            `Player ID ${id} not found in lineup, creating with minimal data`
+            `Added player to create: ${
+              playerName || `Player ${idStr}`
+            } (ID: ${idStr})`
+          );
+        } else {
+          // Fallback for player with no info from any source
+          console.log(
+            `Player ID ${idStr} not found in any data source, creating with minimal data`
           );
           playersToCreate.push({
-            sportMonkId: id.toString(),
-            name: `Player ${id}`,
+            sportMonkId: idStr,
+            name: `Player ${idStr}`,
             isActive: true,
           });
         }

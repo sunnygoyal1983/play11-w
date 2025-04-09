@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { syncLiveMatchData } from '@/services/ball-data-service';
-import { initWalletFixScheduler } from '@/lib/init-wallet-fix';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -50,7 +49,6 @@ export async function GET(
       };
     }
     const result = await syncLiveMatchData(match.id, sportMonkId, forceSync);
-    initWalletFixScheduler();
     if (!result) {
       return NextResponse.json(
         { success: false, error: 'Failed to sync match data' },

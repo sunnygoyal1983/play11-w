@@ -13,11 +13,9 @@ export const metadata: Metadata = {
 
 // Move live scoring initialization to a separate file
 import { initLiveScoring } from '@/lib/init-live-scoring';
-import { initWalletFixScheduler } from '@/lib/init-wallet-fix';
 
-// Try to initialize the live scoring and wallet fix scheduler
+// Try to initialize the live scoring
 initLiveScoring();
-initWalletFixScheduler();
 
 export default function RootLayout({
   children,

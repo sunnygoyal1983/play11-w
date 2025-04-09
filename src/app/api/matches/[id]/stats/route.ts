@@ -68,29 +68,48 @@ export async function GET(
     });
 
     // Transform data to include player name and image
-    const formattedStats = playerStatistics.map((stat) => ({
-      id: stat.id,
-      matchId: stat.matchId,
-      playerId: stat.playerId,
-      playerName: stat.player.name,
-      playerImage: stat.player.image,
-      teamName: stat.player.teamName || 'Unknown Team',
-      role: stat.player.role,
-      points: stat.points,
-      runs: stat.runs,
-      balls: stat.balls,
-      fours: stat.fours,
-      sixes: stat.sixes,
-      strikeRate: stat.strikeRate,
-      wickets: stat.wickets,
-      overs: stat.overs,
-      maidens: stat.maidens,
-      economy: stat.economy,
-      runsConceded: stat.runsConceded,
-      catches: stat.catches,
-      stumpings: stat.stumpings,
-      runOuts: stat.runOuts,
-    }));
+    const formattedStats = playerStatistics.map((stat) => {
+      // Safely access player data with optional chaining
+      const playerName = stat.player?.name || 'Unknown Player';
+      const playerImage = stat.player?.image || null;
+      const teamName = stat.player?.teamName || 'Unknown Team';
+      const role = stat.player?.role || null;
+
+      // Log when we encounter unnamed players
+      if (!stat.player?.name || stat.player.name === 'Unknown Player') {
+        console.warn(
+          `Player with ID ${stat.playerId} has no name. Raw player data:`,
+          JSON.stringify({
+            playerId: stat.playerId,
+            playerData: stat.player || null,
+          })
+        );
+      }
+
+      return {
+        id: stat.id,
+        matchId: stat.matchId,
+        playerId: stat.playerId,
+        playerName: playerName,
+        playerImage: playerImage,
+        teamName: teamName,
+        role: role,
+        points: stat.points,
+        runs: stat.runs,
+        balls: stat.balls,
+        fours: stat.fours,
+        sixes: stat.sixes,
+        strikeRate: stat.strikeRate,
+        wickets: stat.wickets,
+        overs: stat.overs,
+        maidens: stat.maidens,
+        economy: stat.economy,
+        runsConceded: stat.runsConceded,
+        catches: stat.catches,
+        stumpings: stat.stumpings,
+        runOuts: stat.runOuts,
+      };
+    });
 
     // If no player statistics are available yet, return a default response structure
     if (formattedStats.length === 0) {
@@ -137,6 +156,13 @@ export async function GET(
           ? match.teamBName
           : player.teamName || 'Unknown Team');
 
+      // For debugging - log for anyone with Unknown Player name
+      if (player.playerName === 'Unknown Player') {
+        console.warn(
+          `Processed player still has unknown name. Player ID: ${player.playerId}, TeamName: ${teamName}`
+        );
+      }
+
       return {
         id: player.playerId,
         name: player.playerName,
@@ -161,23 +187,32 @@ export async function GET(
       };
     });
 
-    return NextResponse.json({
-      success: true,
-      data: processedPlayers,
-      matchDetails: {
-        id: match.id,
-        name: match.name,
-        status: match.status,
-        teams: {
-          teamA: {
-            name: match.teamAName,
-          },
-          teamB: {
-            name: match.teamBName,
+    return NextResponse.json(
+      {
+        success: true,
+        data: processedPlayers,
+        matchDetails: {
+          id: match.id,
+          name: match.name,
+          status: match.status,
+          teams: {
+            teamA: {
+              name: match.teamAName,
+            },
+            teamB: {
+              name: match.teamBName,
+            },
           },
         },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching player statistics:', error);
     return NextResponse.json(
