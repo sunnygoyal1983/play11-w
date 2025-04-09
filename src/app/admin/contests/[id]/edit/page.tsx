@@ -198,7 +198,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
 
   // Add auto-generate preview effect when form data changes
   useEffect(() => {
-    // Auto-generate preview when form data changes and there are no critical errors
+    console.log('Form data changed:', formData);
     const criticalErrors = validationErrors.filter(
       (error) => error.severity === 'error'
     );
@@ -209,6 +209,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
       formData.winnerCount > 0 &&
       formData.firstPrize > 0
     ) {
+      console.log('Calling generatePrizeBreakupPreview with:', formData);
       generatePrizeBreakupPreview();
     }
   }, [
@@ -351,15 +352,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
   const generatePrizeBreakupPreview = async () => {
     setLoadingPreview(true);
 
-    console.log('Generating preview with:', {
-      matchId: formData.matchId,
-      totalPrize: formData.totalPrize,
-      winnerCount: formData.winnerCount,
-      entryFee: formData.entryFee,
-    });
-
     try {
-      // Make sure we have the required fields
       if (
         !formData.totalPrize ||
         !formData.winnerCount ||
@@ -379,7 +372,12 @@ export default function EditContest({ params }: { params: { id: string } }) {
       });
 
       console.log('Received prize breakup:', prizeBreakup);
-      setPrizeBreakup(prizeBreakup);
+      if (Array.isArray(prizeBreakup)) {
+        setPrizeBreakup(prizeBreakup);
+      } else {
+        console.error('Invalid prize breakup data:', prizeBreakup);
+        setPrizeBreakup([]);
+      }
     } catch (error) {
       console.error('Error generating prize breakup preview:', error);
       alert(
@@ -538,23 +536,17 @@ export default function EditContest({ params }: { params: { id: string } }) {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Entry Fee (₹) <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                      <FaMoneyBillWave />
-                    </span>
-                    <input
-                      type="number"
-                      name="entryFee"
-                      value={formData.entryFee}
-                      onChange={handleChange}
-                      disabled={!isEditable}
-                      placeholder="0"
-                      className={getFieldClass('entryFee')}
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    name="entryFee"
+                    value={formData.entryFee}
+                    onChange={handleChange}
+                    min="0"
+                    className={getFieldClass('entryFee')}
+                  />
                   {getFieldError('entryFee') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {getFieldError('entryFee')?.message || ''}
+                      {getFieldError('entryFee')?.message}
                     </p>
                   )}
                 </div>
@@ -564,46 +556,60 @@ export default function EditContest({ params }: { params: { id: string } }) {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Total Spots <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                      <FaUsers />
-                    </span>
-                    <input
-                      type="number"
-                      name="totalSpots"
-                      value={formData.totalSpots}
-                      onChange={handleChange}
-                      disabled={!isEditable}
-                      placeholder="0"
-                      className={getFieldClass('totalSpots')}
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    name="totalSpots"
+                    value={formData.totalSpots}
+                    onChange={handleChange}
+                    min="2"
+                    className={getFieldClass('totalSpots')}
+                  />
                   {getFieldError('totalSpots') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {getFieldError('totalSpots')?.message || ''}
+                      {getFieldError('totalSpots')?.message}
                     </p>
                   )}
                 </div>
 
-                {/* Prize Pool */}
+                {/* Platform Commission */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Prize Pool (₹) <span className="text-red-500">*</span>
+                    Platform Commission (%)
+                  </label>
+                  <input
+                    type="number"
+                    name="platformCommission"
+                    value={formData.platformCommission}
+                    onChange={handleChange}
+                    min="0"
+                    max="30"
+                    className={getFieldClass('platformCommission')}
+                  />
+                  {getFieldError('platformCommission') && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {getFieldError('platformCommission')?.message}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Recommended: 15-20% for sustainable operations
+                  </p>
+                </div>
+
+                {/* Prize Pool - Calculated */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Prize Pool (₹)
                   </label>
                   <input
                     type="number"
                     name="prizePool"
                     value={formData.prizePool}
-                    onChange={handleChange}
-                    disabled={!isEditable}
-                    placeholder="0"
-                    className={getFieldClass('prizePool')}
+                    readOnly
+                    className="w-full border border-gray-300 bg-gray-50 rounded-md px-3 py-2"
                   />
-                  {getFieldError('prizePool') && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {getFieldError('prizePool')?.message || ''}
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Calculated: Entry Fee × Total Spots × (1 - Commission%)
+                  </p>
                 </div>
 
                 {/* First Prize */}
@@ -630,67 +636,90 @@ export default function EditContest({ params }: { params: { id: string } }) {
                 {/* Winner Percentage */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Winner Percentage (%){' '}
-                    <span className="text-red-500">*</span>
+                    Winner Percentage (%)
                   </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 rounded-l-md border border-r-0 border-gray-300">
-                      <FaPercent />
-                    </span>
-                    <input
-                      type="number"
-                      name="winnerPercentage"
-                      value={formData.winnerPercentage}
-                      onChange={handleChange}
-                      disabled={!isEditable}
-                      placeholder="0"
-                      className={getFieldClass('winnerPercentage')}
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    name="winnerPercentage"
+                    value={formData.winnerPercentage}
+                    onChange={handleChange}
+                    min="0.1"
+                    max="100"
+                    step="0.1"
+                    className={getFieldClass('winnerPercentage')}
+                  />
                   {getFieldError('winnerPercentage') && (
                     <p className="text-red-500 text-xs mt-1">
-                      {getFieldError('winnerPercentage')?.message || ''}
+                      {getFieldError('winnerPercentage')?.message}
                     </p>
                   )}
                 </div>
 
-                {/* Winner Count */}
+                {/* Winner Count - Calculated */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Winner Count <span className="text-red-500">*</span>
+                    Winner Count
                   </label>
                   <input
                     type="number"
                     name="winnerCount"
                     value={formData.winnerCount}
-                    onChange={handleChange}
-                    disabled={!isEditable}
-                    placeholder="0"
-                    className={getFieldClass('winnerCount')}
+                    readOnly
+                    className="w-full border border-gray-300 bg-gray-50 rounded-md px-3 py-2"
                   />
-                  {getFieldError('winnerCount') && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {getFieldError('winnerCount')?.message || ''}
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Calculated: (Winner Percentage% × Total Spots) rounded down
+                  </p>
                 </div>
 
                 {/* Is Guaranteed */}
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="isGuaranteed"
-                    name="isGuaranteed"
-                    checked={formData.isGuaranteed}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                  />
-                  <label
-                    htmlFor="isGuaranteed"
-                    className="ml-2 block text-sm text-gray-700"
-                  >
-                    Guaranteed Contest
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="isGuaranteed"
+                      checked={formData.isGuaranteed}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          isGuaranteed: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">
+                      Guaranteed Contest (will run even if not filled)
+                    </span>
                   </label>
+                </div>
+
+                {/* Prize Structure */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Prize Distribution Structure
+                  </label>
+                  <select
+                    name="prizeStructure"
+                    value={formData.prizeStructure}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="topHeavy">
+                      Top Heavy (bigger prizes for top ranks)
+                    </option>
+                    <option value="balanced">
+                      Balanced (even distribution)
+                    </option>
+                    <option value="distributed">
+                      Widely Distributed (more winners get good prizes)
+                    </option>
+                    <option value="winnerTakesAll">
+                      Winner Takes All (first prize only)
+                    </option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Determines how prize money is distributed among winners
+                  </p>
                 </div>
 
                 {/* Filled Spots (Read Only) */}
@@ -731,6 +760,7 @@ export default function EditContest({ params }: { params: { id: string } }) {
                   </div>
                 ) : prizeBreakup.length > 0 ? (
                   <PrizeBreakupPreview
+                    key={JSON.stringify(prizeBreakup)}
                     prizeBreakup={prizeBreakup}
                     totalPrize={formData.totalPrize}
                     winnerCount={formData.winnerCount}
@@ -784,6 +814,8 @@ const fetchPrizeBreakupPreview = async (params: {
   entryFee: number;
   prizeStructure: string;
 }): Promise<PrizeItem[]> => {
+  console.log('Fetching prize breakup with params:', params);
+
   const response = await fetch('/api/admin/preview-prize-breakup', {
     method: 'POST',
     headers: {
@@ -797,5 +829,6 @@ const fetchPrizeBreakupPreview = async (params: {
   }
 
   const data = await response.json();
+  console.log('Prize Breakup Data:', data);
   return data;
 };

@@ -35,17 +35,6 @@ export function generatePrizeBreakup(params: ContestParams): PrizeItem[] {
   if (firstPrize > totalPrize)
     throw new Error('First prize cannot exceed total prize');
 
-  // Special case for winner-takes-all
-  if (prizeStructure === 'winnerTakesAll' || winnerCount === 1) {
-    return [
-      {
-        rank: 1,
-        amount: totalPrize,
-        percentage: 100,
-      },
-    ];
-  }
-
   const prizeBreakup: PrizeItem[] = [];
   const remainingPrize = totalPrize - firstPrize;
 
@@ -58,7 +47,6 @@ export function generatePrizeBreakup(params: ContestParams): PrizeItem[] {
 
   // Different distribution strategies based on contest size and structure
   if (winnerCount <= 3) {
-    // Small contests (2-3 winners)
     return generateSmallContestPrizes(
       totalPrize,
       winnerCount,
@@ -66,7 +54,6 @@ export function generatePrizeBreakup(params: ContestParams): PrizeItem[] {
       remainingPrize
     );
   } else if (winnerCount < 100) {
-    // Medium contests (4-99 winners)
     return generateMediumContestPrizes(
       totalPrize,
       winnerCount,
@@ -75,7 +62,6 @@ export function generatePrizeBreakup(params: ContestParams): PrizeItem[] {
       prizeStructure
     );
   } else {
-    // Mega contests (100+ winners)
     return generateMegaContestPrizes(
       totalPrize,
       winnerCount,
@@ -84,6 +70,19 @@ export function generatePrizeBreakup(params: ContestParams): PrizeItem[] {
       prizeStructure
     );
   }
+
+  // Ensure total percentage is 100%
+  const totalPercentage = prizeBreakup.reduce(
+    (sum, item) => sum + item.percentage,
+    0
+  );
+
+  if (totalPercentage !== 100) {
+    const diff = 100 - totalPercentage;
+    prizeBreakup[0].percentage += diff;
+  }
+
+  return prizeBreakup;
 }
 
 /**

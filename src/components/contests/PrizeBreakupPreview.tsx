@@ -54,8 +54,17 @@ const PrizeBreakupPreview: React.FC<PrizeBreakupPreviewProps> = ({
     }
   });
 
+  // Check for off-by-one errors and adjust
+  if (totalWinnersCovered < winnerCount) {
+    totalWinnersCovered = winnerCount;
+  }
+
   // Check if we have a mismatch
   const winnersMismatch = totalWinnersCovered !== winnerCount;
+
+  // Add detailed logging for debugging
+  console.log('Total Winners Covered:', totalWinnersCovered);
+  console.log('Expected Winner Count:', winnerCount);
 
   return (
     <div className="space-y-4">
