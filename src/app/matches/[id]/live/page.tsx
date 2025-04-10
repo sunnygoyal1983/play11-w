@@ -22,6 +22,27 @@ export default function LiveMatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [liveData, setLiveData] = useState<any>(null);
+  const [matchData, setMatchData] = useState<any>(null);
+
+  // Fetch match details to get the correct team names
+  useEffect(() => {
+    const fetchMatchDetails = async () => {
+      try {
+        const response = await fetch(`/api/matches/${matchId}`);
+        const result = await response.json();
+
+        if (result.success) {
+          setMatchData(result.data);
+        } else {
+          console.error('Failed to fetch match details:', result.error);
+        }
+      } catch (error) {
+        console.error('Error fetching match details:', error);
+      }
+    };
+
+    fetchMatchDetails();
+  }, [matchId]);
 
   // Fetch live match data
   useEffect(() => {
@@ -97,17 +118,19 @@ export default function LiveMatchPage() {
   return (
     <MainLayout>
       <div className="container mx-auto p-4">
+        {/* Page Title */}
+
         <MatchHeader
           matchId={matchId}
-          teamA={liveData?.teamAName || 'Team A'}
-          teamB={liveData?.teamBName || 'Team B'}
+          teamA={matchData?.teamAName || liveData?.teamAName || 'Team A'}
+          teamB={matchData?.teamBName || liveData?.teamBName || 'Team B'}
           status={liveData?.status || 'Live'}
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
           <ScoreCard
-            teamAName={liveData?.teamAName || 'Team A'}
-            teamBName={liveData?.teamBName || 'Team B'}
+            teamAName={matchData?.teamAName || liveData?.teamAName || 'Team A'}
+            teamBName={matchData?.teamBName || liveData?.teamBName || 'Team B'}
             teamAScore={liveData?.teamAScore || '0/0'}
             teamBScore={liveData?.teamBScore || 'Yet to bat'}
             overs={liveData?.overs || '0.0'}

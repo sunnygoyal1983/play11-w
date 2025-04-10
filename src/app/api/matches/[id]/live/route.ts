@@ -108,6 +108,45 @@ export async function GET(
         console.log(
           `Successfully retrieved processed data for match ${match.id}`
         );
+
+        // ALWAYS update match name if we have valid team names
+        if (
+          localDataResult.data.teamAName &&
+          localDataResult.data.teamBName &&
+          (localDataResult.data.teamAName !== 'Team A' ||
+            localDataResult.data.teamBName !== 'Team B')
+        ) {
+          try {
+            const newName = `${localDataResult.data.teamAName} vs ${localDataResult.data.teamBName}`;
+            console.log(
+              `Updating match name from "${match.name}" to "${newName}"`
+            );
+
+            // Print team names for debugging
+            console.log(`Team A Name: ${localDataResult.data.teamAName}`);
+            console.log(`Team B Name: ${localDataResult.data.teamBName}`);
+
+            // Update the match name
+            await prisma.match.update({
+              where: { id: match.id },
+              data: { name: newName },
+            });
+
+            console.log(`✅ Successfully updated match name to "${newName}"`);
+          } catch (nameUpdateError) {
+            console.error('Error updating match name:', nameUpdateError);
+            // Continue with the response even if name update fails
+          }
+        } else {
+          console.log(`Team names not valid for updating match name:`);
+          console.log(
+            `Team A Name: ${localDataResult.data.teamAName || 'undefined'}`
+          );
+          console.log(
+            `Team B Name: ${localDataResult.data.teamBName || 'undefined'}`
+          );
+        }
+
         return NextResponse.json(
           { success: true, data: localDataResult.data },
           { status: 200 }

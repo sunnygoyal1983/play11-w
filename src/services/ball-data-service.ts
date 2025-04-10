@@ -78,23 +78,41 @@ export async function syncLiveMatchData(
           teamAScore = `${teamAScoreData.score || 0}/${
             teamAScoreData.wickets || 0
           }`;
-          if (teamAScoreData.overs) {
-            overs = teamAScoreData.overs.toString();
-          }
         }
 
         if (teamBScoreData) {
           teamBScore = `${teamBScoreData.score || 0}/${
             teamBScoreData.wickets || 0
           }`;
-          if (!teamAScoreData && teamBScoreData.overs) {
-            overs = teamBScoreData.overs.toString();
-          }
         }
 
         // Determine current innings
         currentInnings =
           Math.max(...matchData.runs.map((r: any) => r.inning)) || 1;
+
+        // Set overs based on current innings
+        const currentInningsData = matchData.runs.find(
+          (r: any) => r.inning === currentInnings
+        );
+
+        if (currentInningsData && currentInningsData.overs) {
+          overs = currentInningsData.overs.toString();
+          console.log(
+            `Setting overs to ${overs} based on current innings ${currentInnings}`
+          );
+        } else if (
+          teamBScoreData &&
+          teamBScoreData.overs &&
+          currentInnings > 1
+        ) {
+          // Fallback for second innings
+          overs = teamBScoreData.overs.toString();
+          console.log(`Fallback: Setting overs to ${overs} for second innings`);
+        } else if (teamAScoreData && teamAScoreData.overs) {
+          // Fallback for first innings
+          overs = teamAScoreData.overs.toString();
+          console.log(`Fallback: Setting overs to ${overs} for first innings`);
+        }
       }
       // Fallback to scoreboards if no runs data
       else if (matchData.scoreboards && matchData.scoreboards.length > 0) {
@@ -349,6 +367,8 @@ export async function getLiveMatchData(matchId: string) {
     let currentBowlerFigures = '0/0 (0.0)';
     let lastWicketText = 'No wickets yet';
     let recentOvers = '';
+    let teamAName = 'Team A';
+    let teamBName = 'Team B';
     // --- END: Data Initialization ---
 
     // --- START: Process Recent Balls ---
@@ -380,6 +400,101 @@ export async function getLiveMatchData(matchId: string) {
 
     if (rawMatchData) {
       console.log(`Processing rawData from MatchSummary for match ${matchId}`);
+
+      // ENHANCED: Extract team names if available - check all possible locations and properties
+      console.log('Attempting to extract team names from raw match data...');
+
+      // Check in localteam and visitorteam objects
+      if (rawMatchData.localteam) {
+        if (
+          typeof rawMatchData.localteam.name === 'string' &&
+          rawMatchData.localteam.name.trim()
+        ) {
+          teamAName = rawMatchData.localteam.name;
+          console.log(`Found team A name from localteam.name: ${teamAName}`);
+        } else if (
+          typeof rawMatchData.localteam.code === 'string' &&
+          rawMatchData.localteam.code.trim()
+        ) {
+          teamAName = rawMatchData.localteam.code;
+          console.log(`Found team A name from localteam.code: ${teamAName}`);
+        } else if (rawMatchData.localteam.fullname) {
+          teamAName = rawMatchData.localteam.fullname;
+          console.log(
+            `Found team A name from localteam.fullname: ${teamAName}`
+          );
+        }
+      }
+
+      if (rawMatchData.visitorteam) {
+        if (
+          typeof rawMatchData.visitorteam.name === 'string' &&
+          rawMatchData.visitorteam.name.trim()
+        ) {
+          teamBName = rawMatchData.visitorteam.name;
+          console.log(`Found team B name from visitorteam.name: ${teamBName}`);
+        } else if (
+          typeof rawMatchData.visitorteam.code === 'string' &&
+          rawMatchData.visitorteam.code.trim()
+        ) {
+          teamBName = rawMatchData.visitorteam.code;
+          console.log(`Found team B name from visitorteam.code: ${teamBName}`);
+        } else if (rawMatchData.visitorteam.fullname) {
+          teamBName = rawMatchData.visitorteam.fullname;
+          console.log(
+            `Found team B name from visitorteam.fullname: ${teamBName}`
+          );
+        }
+      }
+
+      // ADDITIONAL FALLBACK: Check directly from team data if available
+      if (
+        teamAName === 'Team A' &&
+        rawMatchData.teams &&
+        Array.isArray(rawMatchData.teams)
+      ) {
+        const teamA = rawMatchData.teams.find(
+          (team: any) =>
+            team.id?.toString() === rawMatchData.localteam?.id?.toString()
+        );
+        if (teamA?.name) {
+          teamAName = teamA.name;
+          console.log(`Found team A name from teams array: ${teamAName}`);
+        }
+      }
+
+      if (
+        teamBName === 'Team B' &&
+        rawMatchData.teams &&
+        Array.isArray(rawMatchData.teams)
+      ) {
+        const teamB = rawMatchData.teams.find(
+          (team: any) =>
+            team.id?.toString() === rawMatchData.visitorteam?.id?.toString()
+        );
+        if (teamB?.name) {
+          teamBName = teamB.name;
+          console.log(`Found team B name from teams array: ${teamBName}`);
+        }
+      }
+
+      // Also update the Match entity with the extracted team names if they're better than what we have
+      if (teamAName !== 'Team A' || teamBName !== 'Team B') {
+        try {
+          await prisma.match.update({
+            where: { id: matchId },
+            data: {
+              teamAName: teamAName !== 'Team A' ? teamAName : undefined,
+              teamBName: teamBName !== 'Team B' ? teamBName : undefined,
+            },
+          });
+          console.log(
+            `Updated Match record with team names: ${teamAName} vs ${teamBName}`
+          );
+        } catch (error) {
+          console.error('Failed to update Match with team names:', error);
+        }
+      }
 
       // 1. Find active batsmen from rawData.batting
       // First try active flag
@@ -867,6 +982,8 @@ export async function getLiveMatchData(matchId: string) {
     return {
       success: true,
       data: {
+        teamAName,
+        teamBName,
         teamAScore,
         teamBScore,
         overs,

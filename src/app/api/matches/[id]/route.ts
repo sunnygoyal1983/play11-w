@@ -60,3 +60,57 @@ export async function GET(
     );
   }
 }
+
+// Update match details
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const data = await request.json();
+
+    // Validate required fields for match name update
+    if (data.name && (!data.teamAName || !data.teamBName)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Team names are required when updating match name',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Update match
+    const match = await prisma.match.update({
+      where: {
+        id: params.id,
+      },
+      data: {
+        // Allow updating these fields
+        name: data.name,
+        teamAName: data.teamAName,
+        teamBName: data.teamBName,
+      },
+      select: {
+        id: true,
+        name: true,
+        teamAName: true,
+        teamBName: true,
+      },
+    });
+
+    console.log(`Match updated: ${match.name}`);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Match updated successfully',
+      data: match,
+    });
+  } catch (error) {
+    console.error('Error updating match:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update match' },
+      { status: 500 }
+    );
+  }
+}
