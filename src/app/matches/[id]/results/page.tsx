@@ -92,6 +92,31 @@ export default function MatchResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<keyof PlayerStatistic>('points');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [disableAutoRefresh, setDisableAutoRefresh] = useState(true);
+
+  // Add meta tag to prevent page auto-refresh
+  useEffect(() => {
+    // Check if there's an existing refresh meta tag and remove it
+    const existingMetaTag = document.querySelector(
+      'meta[http-equiv="refresh"]'
+    );
+    if (existingMetaTag) {
+      existingMetaTag.remove();
+    }
+
+    // This signals to browsers that the page shouldn't auto-refresh
+    const noCache = document.createElement('meta');
+    noCache.httpEquiv = 'Cache-Control';
+    noCache.content = 'no-cache, no-store, must-revalidate';
+    document.head.appendChild(noCache);
+
+    return () => {
+      // Clean up when component unmounts
+      if (noCache && noCache.parentNode) {
+        noCache.parentNode.removeChild(noCache);
+      }
+    };
+  }, []);
 
   // Function to handle table header clicks for sorting
   const handleSortClick = (field: keyof PlayerStatistic) => {
@@ -156,7 +181,7 @@ export default function MatchResultsPage() {
   // Function to fetch player stats only
   const fetchPlayerStats = async (forceUpdate = false) => {
     try {
-      setRefreshing(true);
+      setRefreshing(false);
       setStatusMessage(
         forceUpdate
           ? 'Requesting backend data update...'
@@ -218,19 +243,6 @@ export default function MatchResultsPage() {
             'players'
           );
           setStatusMessage(`Found ${statsData.data.length} player records`);
-
-          // Add debug logging for the first few players
-          if (statsData.data.length > 0) {
-            console.log('Sample player data:');
-            statsData.data.slice(0, 3).forEach((player: any, index: number) => {
-              console.log(`Player ${index + 1}:`, {
-                id: player.id,
-                name: player.name,
-                teamName: player.teamName,
-                keys: Object.keys(player),
-              });
-            });
-          }
 
           // Update state without causing a navigation
           setPlayerStats((prevStats) => {
@@ -363,6 +375,27 @@ export default function MatchResultsPage() {
 
     fetchMatchDetails();
   }, [matchId, session]);
+
+  // Add an effect for auto-refresh
+  useEffect(() => {
+    let refreshTimer: NodeJS.Timeout | null = null;
+
+    // Only set up auto-refresh if enabled
+    if (!disableAutoRefresh && !refreshing) {
+      // Refresh data every 30 seconds
+      refreshTimer = setTimeout(() => {
+        console.log('Auto-refreshing data...');
+        fetchPlayerStats(false);
+      }, 30000); // 30 seconds
+    }
+
+    return () => {
+      // Clean up timer on component unmount or when refresh settings change
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+    };
+  }, [disableAutoRefresh, refreshing, lastRefreshed]);
 
   // Format the date for display
   const formatDate = (dateString: string) => {
@@ -617,13 +650,30 @@ export default function MatchResultsPage() {
                     <span className="text-indigo-600">{statusMessage}</span>
                   ) : lastRefreshed ? (
                     <span>
-                      Last updated: {lastRefreshed.toLocaleTimeString()} ·
-                      Version: {refreshCount}
+                      Last updated: {lastRefreshed.toLocaleTimeString()}
                     </span>
                   ) : null}
                 </div>
               </div>
-              <div className="flex space-x-2">
+              <div className="flex space-x-2 items-center">
+                {/* Auto-refresh toggle */}
+                <div className="flex items-center mr-2">
+                  <label className="inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      value=""
+                      className="sr-only peer"
+                      checked={!disableAutoRefresh}
+                      onChange={() =>
+                        setDisableAutoRefresh(!disableAutoRefresh)
+                      }
+                    />
+                    <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <span className="ms-2 text-sm font-medium text-gray-700">
+                      Auto-refresh
+                    </span>
+                  </label>
+                </div>
                 <button
                   onClick={() => fetchPlayerStats(false)}
                   disabled={refreshing}
@@ -850,43 +900,6 @@ export default function MatchResultsPage() {
                                     {player.role}
                                   </div>
                                 )}
-
-                                {/* Debug tooltip */}
-                                <div className="absolute z-10 invisible group-hover:visible bg-gray-800 text-white text-xs rounded p-2 left-0 mt-2 min-w-[200px] shadow-lg">
-                                  <div className="font-bold border-b pb-1 mb-1">
-                                    Player Debug Info:
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold">ID:</span>{' '}
-                                    {player.id}
-                                  </div>
-                                  {player.playerId && (
-                                    <div>
-                                      <span className="font-semibold">
-                                        Player ID:
-                                      </span>{' '}
-                                      {player.playerId}
-                                    </div>
-                                  )}
-                                  <div>
-                                    <span className="font-semibold">Name:</span>{' '}
-                                    {player.name || 'Missing'}
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold">Team:</span>{' '}
-                                    {player.teamName}
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold">Role:</span>{' '}
-                                    {player.role || 'Unknown'}
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold">
-                                      Fields:
-                                    </span>{' '}
-                                    {Object.keys(player).join(', ')}
-                                  </div>
-                                </div>
                               </div>
                             </div>
                           </td>
