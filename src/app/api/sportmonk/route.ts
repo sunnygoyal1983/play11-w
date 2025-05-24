@@ -1,66 +1,32 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import {
-  fetchUpcomingMatches,
-  fetchLiveMatches,
-  fetchRecentMatches,
-  fetchMatchDetails,
-  fetchPlayerDetails,
-  fetchTeamPlayers,
-} from '@/services/sportmonk-api';
 
 const prisma = new PrismaClient();
 
-export async function GET(request: Request) {
+// Sportsmonk API configuration
+const SPORTSMONK_API_KEY = process.env.SPORTSMONK_API_KEY || '';
+const SPORTSMONK_BASE_URL =
+  process.env.SPORTMONK_API_URL || 'https://cricket.sportmonk.com/api/v2.0';
+
+// Helper function to fetch data from Sportsmonk API
+export async function fetchSportsmonkData(endpoint: string) {
   try {
-    const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type') || 'upcoming';
-    const page = parseInt(searchParams.get('page') || '1');
-    const perPage = parseInt(searchParams.get('per_page') || '10');
-    const id = searchParams.get('id');
-
-    let data;
-
-    switch (type) {
-      case 'upcoming':
-        data = await fetchUpcomingMatches(page, perPage);
-        break;
-      case 'live':
-        data = await fetchLiveMatches(page, perPage);
-        break;
-      case 'recent':
-        data = await fetchRecentMatches(page, perPage);
-        break;
-      case 'match':
-        if (!id) throw new Error('Match ID is required');
-        data = await fetchMatchDetails(parseInt(id));
-        break;
-      case 'player':
-        if (!id) throw new Error('Player ID is required');
-        data = await fetchPlayerDetails(parseInt(id));
-        break;
-      case 'team':
-        if (!id) throw new Error('Team ID is required');
-        data = await fetchTeamPlayers(parseInt(id));
-        break;
-      default:
-        throw new Error('Invalid type parameter');
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('API Error:', error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
+    const response = await fetch(
+      `${SPORTSMONK_BASE_URL}${endpoint}?api_token=${SPORTSMONK_API_KEY}`
     );
+    if (!response.ok)
+      throw new Error(`Sportsmonk API error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching ${endpoint}:`, error);
+    throw error;
   }
 }
 
 // Import matches from Sportsmonk
 async function importMatches() {
-  const data = await fetchUpcomingMatches(1, 100);
-  
+  const data = await fetchSportsmonkData('/matches');
+
   // Transform and insert matches into database
   for (const match of data.data) {
     await prisma.match.upsert({
@@ -82,7 +48,7 @@ async function importMatches() {
         leagueId: match.league_id?.toString(),
         leagueName: match.league?.name,
         result: match.note || null,
-        isActive: true,
+        isActive: true
       },
       create: {
         id: match.id.toString(),
@@ -102,7 +68,7 @@ async function importMatches() {
         leagueId: match.league_id?.toString(),
         leagueName: match.league?.name,
         result: match.note || null,
-        isActive: true,
+        isActive: true
       },
     });
   }
@@ -110,7 +76,7 @@ async function importMatches() {
 
 // Import teams from Sportsmonk
 async function importTeams() {
-  const data = await fetchTeamPlayers(1);
+  const data = await fetchSportsmonkData('/teams');
 
   for (const team of data.data) {
     await prisma.team.upsert({
@@ -120,7 +86,7 @@ async function importTeams() {
         code: team.code,
         image: team.image_path,
         country: team.country,
-        isActive: true,
+        isActive: true
       },
       create: {
         id: team.id.toString(),
@@ -128,7 +94,7 @@ async function importTeams() {
         code: team.code,
         image: team.image_path,
         country: team.country,
-        isActive: true,
+        isActive: true
       },
     });
   }
@@ -136,7 +102,7 @@ async function importTeams() {
 
 // Import players from Sportsmonk
 async function importPlayers() {
-  const data = await fetchPlayerDetails(1);
+  const data = await fetchSportsmonkData('/players');
 
   for (const player of data.data) {
     await prisma.player.upsert({
@@ -153,7 +119,7 @@ async function importPlayers() {
         battingStyle: player.batting_style,
         bowlingStyle: player.bowling_style,
         credits: 8.0,
-        isActive: true,
+        isActive: true
       },
       create: {
         id: player.id.toString(),
@@ -168,7 +134,7 @@ async function importPlayers() {
         battingStyle: player.batting_style,
         bowlingStyle: player.bowling_style,
         credits: 8.0,
-        isActive: true,
+        isActive: true
       },
     });
   }

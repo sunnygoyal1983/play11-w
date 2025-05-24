@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { teamId: string } }
-) {
+export async function GET(request: Request, { params }: { params: { teamId: string } }) {
   try {
     const teamId = parseInt(params.teamId);
 
     if (isNaN(teamId)) {
-      return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid team ID' },
+        { status: 400 }
+      );
     }
 
     // First check if the team exists
     const team = await prisma.player.findMany({
       where: {
         teamId: teamId.toString(),
-        isActive: true,
+        isActive: true
       },
       select: {
         id: true,
@@ -28,7 +28,7 @@ export async function GET(
         teamName: true,
         battingStyle: true,
         bowlingStyle: true,
-        credits: true,
+        credits: true
       },
     });
 

@@ -4,7 +4,7 @@ import { fetchSportsmonkData } from '../../api/sportmonk/route';
 export default async function SportmonkAdminPage() {
   try {
     const matches = await fetchSportsmonkData('/cricket/matches');
-
+    
     return (
       <div className="p-4">
         <h1 className="text-2xl font-bold mb-4">Cricket Match Data</h1>
@@ -14,13 +14,9 @@ export default async function SportmonkAdminPage() {
               <h2 className="text-xl font-semibold mb-2">{match.name}</h2>
               <p className="text-gray-600">Format: {match.format}</p>
               <p className="text-gray-600">Venue: {match.venue?.name}</p>
-              <p className="text-gray-600">
-                Start Time: {new Date(match.starting_at).toLocaleString()}
-              </p>
+              <p className="text-gray-600">Start Time: {new Date(match.starting_at).toLocaleString()}</p>
               <div className="mt-2 pt-2 border-t">
-                <p className="font-medium">
-                  {match.localteam?.name} vs {match.visitorteam?.name}
-                </p>
+                <p className="font-medium">{match.localteam?.name} vs {match.visitorteam?.name}</p>
               </div>
             </div>
           ))}
