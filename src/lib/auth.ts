@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 // Extend the session and user types
 declare module 'next-auth' {
@@ -55,9 +56,8 @@ export const authOptions: NextAuthOptions = {
           throw new Error('No user found with this email');
         }
 
-        // For development/testing only - direct string comparison
-        // In production, should use proper password hashing
-        const isPasswordValid = credentials.password === user.password;
+        // Use bcrypt for secure password comparison
+        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
           throw new Error('Invalid password');

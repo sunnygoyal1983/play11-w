@@ -35,6 +35,9 @@ export default function LiveMatchesPage() {
   const [checkingCompletedMatches, setCheckingCompletedMatches] =
     useState(false);
   const [completedCheckResult, setCompletedCheckResult] = useState<any>(null);
+  const [autoCompletingOldMatches, setAutoCompletingOldMatches] =
+    useState(false);
+  const [autoCompleteResult, setAutoCompleteResult] = useState<any>(null);
 
   // Check if user is admin, redirect if not
   useEffect(() => {
@@ -277,6 +280,42 @@ export default function LiveMatchesPage() {
     }
   };
 
+  // Auto-complete old live matches
+  const autoCompleteOldMatches = async () => {
+    try {
+      setAutoCompletingOldMatches(true);
+      const response = await fetch('/api/cron/auto-complete-old-matches', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAutoCompleteResult(data);
+        if (data.results?.matchesCompleted > 0) {
+          toast.success(
+            `Successfully marked ${data.results.matchesCompleted} old matches as completed`
+          );
+          // Refresh the live matches list
+          window.location.reload();
+        } else {
+          toast.success('No old matches found to complete');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(
+          `Failed to auto-complete old matches: ${
+            errorData.error || 'Unknown error'
+          }`
+        );
+      }
+    } catch (error) {
+      console.error('Error auto-completing old matches:', error);
+      toast.error('Error auto-completing old matches');
+    } finally {
+      setAutoCompletingOldMatches(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-8">
@@ -387,6 +426,19 @@ export default function LiveMatchesPage() {
               <FaCheckCircle className="mr-2" />
             )}
             Check Completed Matches
+          </button>
+
+          <button
+            onClick={autoCompleteOldMatches}
+            disabled={autoCompletingOldMatches}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded flex items-center disabled:bg-orange-300"
+          >
+            {autoCompletingOldMatches ? (
+              <FaSpinner className="animate-spin mr-2" />
+            ) : (
+              <FaTimesCircle className="mr-2" />
+            )}
+            Auto-Complete Old Matches
           </button>
         </div>
 

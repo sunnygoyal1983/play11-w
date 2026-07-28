@@ -1,11 +1,55 @@
-"use client";
+'use client';
 
 import Link from 'next/link';
 import Image from 'next/image';
 import { FaTrophy, FaUsers, FaMoneyBillWave } from 'react-icons/fa';
 import MainLayout from '@/components/MainLayout';
+import { useEffect, useState } from 'react';
+
+interface UpcomingMatch {
+  id: string;
+  title: string;
+  matchName?: string; // Optional, as per API response structure
+  teamA: string;
+  teamB: string;
+  teamALogo?: string | null;
+  teamBLogo?: string | null;
+  startTime: string;
+  format: string;
+  prize: string;
+}
 
 export default function Home() {
+  const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUpcomingMatches = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/matches/upcoming');
+        if (!response.ok) {
+          throw new Error('Failed to fetch upcoming matches');
+        }
+        const data = await response.json();
+        if (data.success) {
+          setUpcomingMatches(data.data);
+        } else {
+          throw new Error(data.error || 'Failed to load matches');
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'An unknown error occurred'
+        );
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUpcomingMatches();
+  }, []);
   return (
     <MainLayout>
       {/* Hero Section */}
@@ -17,7 +61,8 @@ export default function Home() {
                 Play Fantasy Cricket, Win Real Cash!
               </h1>
               <p className="text-xl mb-6">
-                Create your dream team, join contests, and compete with players around the world.
+                Create your dream team, join contests, and compete with players
+                around the world.
               </p>
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <Link
@@ -52,7 +97,9 @@ export default function Home() {
       {/* How It Works Section */}
       <section className="py-12 mb-12">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">How Play11 Works</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">
+            How Play11 Works
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-white p-6 rounded-lg shadow-md text-center">
               <div className="flex justify-center mb-4">
@@ -62,7 +109,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Create Your Team</h3>
               <p className="text-gray-600">
-                Select 11 players within a 100 credit budget. Choose a captain and vice-captain.
+                Select 11 players within a 100 credit budget. Choose a captain
+                and vice-captain.
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md text-center">
@@ -73,7 +121,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Join Contests</h3>
               <p className="text-gray-600">
-                Enter your team in contests with different entry fees and prize pools.
+                Enter your team in contests with different entry fees and prize
+                pools.
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md text-center">
@@ -84,7 +133,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Win Cash Prizes</h3>
               <p className="text-gray-600">
-                Score points based on your players' performance and win real cash prizes.
+                Score points based on your players performance and win real cash
+                prizes.
               </p>
             </div>
           </div>
@@ -96,65 +146,117 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold">Upcoming Matches</h2>
-            <Link href="/matches" className="text-indigo-600 hover:text-indigo-800 font-medium">
+            <Link
+              href="/matches"
+              className="text-indigo-600 hover:text-indigo-800 font-medium"
+            >
               View All
             </Link>
           </div>
-          
-          {/* Placeholder for upcoming matches - would be populated from API */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((match) => (
-              <div key={match} className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="bg-indigo-50 p-3 border-b">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-gray-600">T20 • Starts in 2h</span>
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                      ₹2 Lakhs Prize
-                    </span>
+
+          {/* Upcoming matches section */}
+          {loading && (
+            <p className="text-center text-gray-500">
+              Loading upcoming matches...
+            </p>
+          )}
+          {error && <p className="text-center text-red-500">Error: {error}</p>}
+          {!loading && !error && upcomingMatches.length === 0 && (
+            <p className="text-center text-gray-500">
+              No upcoming matches found.
+            </p>
+          )}
+          {!loading && !error && upcomingMatches.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {upcomingMatches.map((match) => (
+                <div
+                  key={match}
+                  className="bg-white rounded-lg shadow-md overflow-hidden"
+                >
+                  <div className="bg-indigo-50 p-3 border-b">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">
+                        {match.format} • Starts{' '}
+                        {new Date(match.startTime).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        {/* Adjust time formatting as needed */}
+                      </span>
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                        {match.prize}{' '}
+                        {/* Assuming prize is directly available */}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center">
+                        {match.teamALogo ? (
+                          <Image
+                            src={match.teamALogo}
+                            alt={match.teamA}
+                            width={40}
+                            height={40}
+                            className="rounded-full mr-3"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gray-200 rounded-full mr-3"></div>
+                        )}
+                        <span className="font-medium">{match.teamA}</span>
+                      </div>
+                      <span className="text-sm font-bold">VS</span>
+                      <div className="flex items-center">
+                        <span className="font-medium">{match.teamB}</span>
+                        {match.teamBLogo ? (
+                          <Image
+                            src={match.teamBLogo}
+                            alt={match.teamB}
+                            width={40}
+                            height={40}
+                            className="rounded-full ml-3"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gray-200 rounded-full ml-3"></div>
+                        )}
+                      </div>
+                    </div>
+                    <Link
+                      href={`/matches/${match.id}`}
+                      className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 rounded"
+                    >
+                      Create Team
+                    </Link>
                   </div>
                 </div>
-                <div className="p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full mr-3"></div>
-                      <span className="font-medium">Team A</span>
-                    </div>
-                    <span className="text-sm font-bold">VS</span>
-                    <div className="flex items-center">
-                      <span className="font-medium">Team B</span>
-                      <div className="w-10 h-10 bg-gray-200 rounded-full ml-3"></div>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/matches/${match}`}
-                    className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 rounded"
-                  >
-                    Create Team
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       {/* Testimonials Section */}
       <section className="py-12">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">What Our Users Say</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">
+            What Our Users Say
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
                 name: 'Rahul Sharma',
-                quote: 'I won ₹50,000 in my first month using Play11! The platform is easy to use and has great contests.',
+                quote:
+                  'I won ₹50,000 in my first month using Play11! The platform is easy to use and has great contests.',
               },
               {
                 name: 'Priya Patel',
-                quote: 'Play11 has the best user interface among all fantasy platforms. I love creating multiple teams for big matches.',
+                quote:
+                  'Play11 has the best user interface among all fantasy platforms. I love creating multiple teams for big matches.',
               },
               {
                 name: 'Amit Kumar',
-                quote: 'Instant withdrawals and excellent customer support. Play11 is my go-to fantasy cricket platform now.',
+                quote:
+                  'Instant withdrawals and excellent customer support. Play11 is my go-to fantasy cricket platform now.',
               },
             ].map((testimonial, index) => (
               <div key={index} className="bg-white p-6 rounded-lg shadow-md">
