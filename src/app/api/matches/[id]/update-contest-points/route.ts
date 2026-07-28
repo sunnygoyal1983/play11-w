@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { updateLiveContestPoints } from '@/services/live-match-scheduler';
@@ -8,10 +8,8 @@ import { prisma } from '@/lib/prisma';
  * POST /api/matches/[id]/update-contest-points
  * Manually updates contest points for a live match
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     // Check authentication
     const session = await getServerSession(authOptions);

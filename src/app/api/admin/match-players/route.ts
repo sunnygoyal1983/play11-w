@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/services/sportmonk';
 
 export async function GET(request: NextRequest) {

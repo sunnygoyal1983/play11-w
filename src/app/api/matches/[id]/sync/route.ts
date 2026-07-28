@@ -1,14 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { syncLiveMatchData } from '@/services/ball-data-service';
 import { prisma } from '@/lib/prisma';
 
 /**
  * Endpoint to sync live match data from SportMonks to our database
  */
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     console.log(`Syncing live data for match: ${params.id}`);
 

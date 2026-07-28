@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma, sportmonkApi } from '@/services/sportmonk';
 import { createMatch } from '@/services/sportmonk/matches';
 

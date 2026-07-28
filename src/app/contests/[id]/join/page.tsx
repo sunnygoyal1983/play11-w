@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
@@ -14,11 +14,30 @@ import {
 } from 'react-icons/fa';
 import MainLayout from '@/components/MainLayout';
 
-export default function ContestJoinPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function ContestJoinPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center min-h-screen">
+          Loading...
+        </div>
+      }
+    >
+      <ContestJoinPageContent {...props} />
+    </Suspense>
+  );
+}
+
+function ContestJoinPageContent(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = use(props.params);
   const router = useRouter();
   const { data: session } = useSession();
   const searchParams = useSearchParams();

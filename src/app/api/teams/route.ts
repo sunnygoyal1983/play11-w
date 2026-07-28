@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { sportmonkApi, prisma } from '@/services/sportmonk';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth-options';
 import { fetchTeamPlayers } from '@/services/sportmonk-api';
 
 export async function GET(request: NextRequest) {

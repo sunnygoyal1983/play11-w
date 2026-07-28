@@ -1,11 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { getLiveMatchData } from '@/services/ball-data-service';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     console.log(`Manually updating match name for match: ${params.id}`);
 

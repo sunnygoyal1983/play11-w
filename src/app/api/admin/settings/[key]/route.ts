@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { isAuthenticatedAdmin } from '@/lib/auth-utils';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/admin/settings/:key - Get a single setting
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { key: string } }
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ key: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
     const key = params.key;
@@ -43,10 +41,8 @@ export async function GET(
 }
 
 // PUT /api/admin/settings/:key - Update a setting
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { key: string } }
-) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ key: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
     const key = params.key;
@@ -101,10 +97,8 @@ export async function PUT(
 }
 
 // DELETE /api/admin/settings/:key - Delete a setting
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { key: string } }
-) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ key: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
     const key = params.key;

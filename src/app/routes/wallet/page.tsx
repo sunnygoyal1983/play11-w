@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import MainLayout from '@/components/MainLayout';
 import { FaWallet, FaMoneyBillWave, FaArrowUp, FaArrowDown, FaHistory, FaPlus, FaMinus } from 'react-icons/fa';

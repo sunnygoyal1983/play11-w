@@ -138,7 +138,7 @@ export default function Matches() {
           </div>
         ) : error ? (
           // Error state
-          <div className="bg-red-50 border-l-4 border-red-500 p-4">
+          (<div className="bg-red-50 border-l-4 border-red-500 p-4">
             <div className="flex">
               <div className="ml-3">
                 <p className="text-red-700">{error}</p>
@@ -150,17 +150,17 @@ export default function Matches() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>)
         ) : matches.length === 0 ? (
           // Empty state
-          <EmptyState
+          (<EmptyState
             title={`No ${activeTab} matches available`}
             description="Check back later for upcoming cricket matches"
             imageUrl="/empty-matches.svg"
-          />
+          />)
         ) : (
           // Match cards
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {matches.map((match) => (
               <Link href={`/matches/${match.id}`} key={match.id}>
                 <div className="border rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow">
@@ -237,7 +237,7 @@ export default function Matches() {
                 </div>
               </Link>
             ))}
-          </div>
+          </div>)
         )}
       </div>
     </MainLayout>

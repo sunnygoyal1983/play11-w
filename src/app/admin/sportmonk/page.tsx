@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { fetchSportsmonkData } from '../../api/sportmonk/route';
 
 export default async function SportmonkAdminPage() {

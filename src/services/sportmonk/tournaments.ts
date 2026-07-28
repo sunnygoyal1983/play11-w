@@ -51,11 +51,11 @@ export const fetchTournaments = async (page = 1, perPage = 100) => {
         // Store the season ID in the database directly using raw SQL
         // This avoids the Prisma client validation errors
         try {
-          await prisma.$executeRawUnsafe(`
+          await prisma.$executeRaw`
             UPDATE "Tournament" 
-            SET "seasonId" = '${seasonId}'
-            WHERE "sportMonkId" = '${tournament.id?.toString() || ''}'
-          `);
+            SET "seasonId" = ${seasonId}
+            WHERE "sportMonkId" = ${tournament.id?.toString() || ''}
+          `;
         } catch (sqlError) {
           console.error(
             `Error storing season ID for tournament ${tournament.name}:`,
@@ -138,11 +138,11 @@ export const fetchTournamentDetails = async (tournamentId: number) => {
       // Store the season ID in the database directly using raw SQL
       // This avoids the Prisma client validation errors
       try {
-        await prisma.$executeRawUnsafe(`
+        await prisma.$executeRaw`
           UPDATE "Tournament" 
-          SET "seasonId" = '${seasonId}'
-          WHERE "sportMonkId" = '${tournament.id?.toString() || ''}'
-        `);
+          SET "seasonId" = ${seasonId}
+          WHERE "sportMonkId" = ${tournament.id?.toString() || ''}
+        `;
       } catch (sqlError) {
         console.error(
           `Error storing season ID for tournament ${tournament.name}:`,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn, useSession } from 'next-auth/react';
@@ -13,7 +13,7 @@ interface SignInFormData {
   password: string;
 }
 
-export default function SignIn() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -26,14 +26,12 @@ export default function SignIn() {
     formState: { errors },
   } = useForm<SignInFormData>();
 
-  // Redirect if user is already authenticated
   useEffect(() => {
     if (status === 'authenticated' && session) {
       router.push('/');
     }
   }, [status, session, router]);
 
-  // Check for error params
   useEffect(() => {
     const errorParam = searchParams?.get('error');
     if (errorParam === 'AdminRequired') {
@@ -61,7 +59,7 @@ export default function SignIn() {
       } else {
         router.push('/matches');
       }
-    } catch (error) {
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -195,5 +193,19 @@ export default function SignIn() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function SignIn() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Loading...
+        </div>
+      }
+    >
+      <SignInContent />
+    </Suspense>
   );
 }

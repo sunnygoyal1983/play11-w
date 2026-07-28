@@ -3,14 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { UserRole } from '@prisma/client';
 import { ManualImport } from './ManualImport';
-import dynamic from 'next/dynamic';
-
-// Dynamically import the ImportScheduler with no SSR to avoid client/server conflicts
-const ImportScheduler = dynamic(() => import('./ImportScheduler'), {
-  ssr: false,
-});
+import ImportSchedulerClient from './ImportSchedulerClient';
 
 export default async function TestImportPage() {
   // Check authorization
@@ -41,7 +35,7 @@ export default async function TestImportPage() {
           <hr />
         </div>
 
-        <ImportScheduler />
+        <ImportSchedulerClient />
       </div>
     </div>
   );

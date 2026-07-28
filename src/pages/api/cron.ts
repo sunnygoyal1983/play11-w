@@ -2,11 +2,11 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { prisma, sportmonkApi } from '@/services/sportmonk';
 import { createMatch } from '@/services/sportmonk/matches';
 
-// Define authorized API keys for cron services
+// Define authorized API keys for cron services (env only — no hardcoded fallbacks)
 const AUTHORIZED_API_KEYS = [
-  process.env.CRON_API_KEY, // From environment variable
-  'play11-scheduler-key', // Fallback hardcoded key
-];
+  process.env.CRON_API_KEY,
+  process.env.CRON_SECRET,
+].filter(Boolean) as string[];
 
 // Check if a timestamp has passed the specified minutes
 function hasExceededMinutes(
@@ -35,7 +35,11 @@ export default async function handler(
 
   // Verify authorization
   const apiKey = req.headers['x-api-key'] as string;
-  if (!AUTHORIZED_API_KEYS.includes(apiKey)) {
+  if (
+    AUTHORIZED_API_KEYS.length === 0 ||
+    !apiKey ||
+    !AUTHORIZED_API_KEYS.includes(apiKey)
+  ) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

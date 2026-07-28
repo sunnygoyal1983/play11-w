@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { triggerContestFinalization } from '@/services/live-match-scheduler';
@@ -7,10 +7,8 @@ import { triggerContestFinalization } from '@/services/live-match-scheduler';
  * POST - Finalize all contests for a match
  * This endpoint handles automatically finalizing all contests for a specific match
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     // Check authentication and admin status
     const session = await getServerSession(authOptions);

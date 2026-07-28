@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,8 @@ interface Match {
   isActive: boolean;
 }
 
-export default function EditMatch({ params }: { params: { id: string } }) {
+export default function EditMatch(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const router = useRouter();
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);

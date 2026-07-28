@@ -7,6 +7,14 @@
 let isInitialized = false;
 
 export function initLiveScoring() {
+  // Skip during Next.js build / static generation
+  if (
+    process.env.NEXT_PHASE === 'phase-production-build' ||
+    process.env.NEXT_PHASE === 'phase-export'
+  ) {
+    return;
+  }
+
   // Only run on server-side and once
   if (typeof window === 'undefined' && !isInitialized) {
     isInitialized = true;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -116,7 +116,22 @@ interface MatchStats {
   playerStats: PlayerStat[];
 }
 
-export default function ContestPage({ params }: { params: { id: string } }) {
+export default function ContestPage(props: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center min-h-screen">
+          Loading...
+        </div>
+      }
+    >
+      <ContestPageContent {...props} />
+    </Suspense>
+  );
+}
+
+function ContestPageContent(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();

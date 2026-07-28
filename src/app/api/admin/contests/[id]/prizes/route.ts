@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -14,10 +14,8 @@ type PrizeItem = {
 };
 
 // GET - Retrieve prize breakup for a contest
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const contestId = params.id;
 
@@ -97,37 +95,22 @@ export async function GET(
 /**
  * POST - Generate prize breakup for a contest
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
-    // Get the request body
-    let bypassAuth = false;
-    try {
-      const requestBody = await request.json();
-      bypassAuth = requestBody.bypassAuth === true;
-    } catch (e) {
-      // Ignore JSON parsing errors
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
     }
 
-    // Check authentication unless bypassed
-    if (!bypassAuth) {
-      const session = await getServerSession(authOptions);
-      if (!session) {
-        return NextResponse.json(
-          { error: 'Not authenticated' },
-          { status: 401 }
-        );
-      }
-
-      // Check if the user is an admin
-      if (session.user.role !== 'ADMIN') {
-        return NextResponse.json(
-          { error: 'Only admins can update prize breakups' },
-          { status: 403 }
-        );
-      }
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Only admins can update prize breakups' },
+        { status: 403 }
+      );
     }
 
     const contestId = params.id;

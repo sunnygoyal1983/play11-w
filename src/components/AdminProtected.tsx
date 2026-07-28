@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { UserRole } from '@prisma/client';
-import { isAdminUser } from '@/lib/auth-utils';
 
 export default function AdminProtected({
   children,
@@ -37,17 +36,11 @@ export default function AdminProtected({
       return;
     }
 
-    // Check if user is admin based on role or email
-    const isAdmin =
-      session?.user?.role === UserRole.ADMIN ||
-      (session?.user?.email && isAdminUser(session.user.email));
+    // Check if user is admin based on role only (no email allowlist)
+    const isAdmin = session?.user?.role === UserRole.ADMIN;
 
     console.log('AdminProtected - Direct check isAdmin:', isAdmin);
     console.log('AdminProtected - User role:', session?.user?.role);
-    console.log(
-      'AdminProtected - Admin emails check:',
-      session?.user?.email && isAdminUser(session.user.email)
-    );
 
     if (isAdmin) {
       setIsAuthorized(true);

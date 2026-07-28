@@ -1,10 +1,8 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { prisma } from '@/lib/prisma';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { playerId: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ playerId: string }> }) {
+  const params = await props.params;
   try {
     const playerId = parseInt(params.playerId);
 
@@ -44,10 +42,8 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: Request,
-  { params }: { params: { playerId: string } }
-) {
+export async function PUT(request: Request, props: { params: Promise<{ playerId: string }> }) {
+  const params = await props.params;
   try {
     const playerId = parseInt(params.playerId);
     const data = await request.json();

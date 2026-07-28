@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent, use } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FaArrowLeft,
@@ -67,7 +67,8 @@ interface ContestFormData {
   filledSpots: number;
 }
 
-export default function EditContest({ params }: { params: { id: string } }) {
+export default function EditContest(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingContest, setLoadingContest] = useState<boolean>(true);

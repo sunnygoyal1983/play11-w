@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { FantasyTeamPlayer, PlayerStatistic } from '@prisma/client';
 
@@ -27,10 +27,8 @@ interface PlayerStat {
   points: number;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const contestId = params.id;
     console.log(

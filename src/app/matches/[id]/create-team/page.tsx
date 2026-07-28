@@ -1378,7 +1378,7 @@ export default function CreateTeam() {
 
         {showCaptainSelection ? (
           /* Captain Selection View */
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          (<div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center mb-4">
               <button
                 onClick={backToPlayerSelection}
@@ -1390,7 +1390,6 @@ export default function CreateTeam() {
                 Select Captain & Vice Captain
               </h2>
             </div>
-
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">
                 Captain gets 2x points, Vice Captain gets 1.5x points
@@ -1414,7 +1413,6 @@ export default function CreateTeam() {
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {selectedPlayers.map((player) => (
                 <div
@@ -1458,7 +1456,6 @@ export default function CreateTeam() {
                 </div>
               ))}
             </div>
-
             <div className="mt-6">
               <button
                 onClick={handleSubmitTeam}
@@ -1468,10 +1465,10 @@ export default function CreateTeam() {
                 {isSaving ? 'Creating Team...' : 'Create Team'}
               </button>
             </div>
-          </div>
+          </div>)
         ) : (
           /* Player Selection View */
-          <>
+          (<>
             {/* Role Tabs */}
             <div className="bg-white rounded-lg shadow-md p-4 mb-6">
               <div className="flex border-b mb-4">
@@ -1748,7 +1745,6 @@ export default function CreateTeam() {
                 )}
               </div>
             </div>
-
             {/* Continue Button */}
             <button
               onClick={proceedToCaptainSelection}
@@ -1757,7 +1753,7 @@ export default function CreateTeam() {
             >
               {`Continue (${teamStats.totalPlayers}/${CONSTRAINTS.TOTAL_PLAYERS})`}
             </button>
-          </>
+          </>)
         )}
       </div>
     </MainLayout>

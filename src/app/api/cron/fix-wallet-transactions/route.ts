@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -10,11 +10,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Running automatic wallet transaction fix...');
 
-    // Check for authorization via cron secret header
+    // Fail-closed cron authorization
+    const cronSecret = process.env.CRON_SECRET;
     const cronSecretHeader = request.headers.get('x-cron-secret');
-    const isAuthorizedCron = cronSecretHeader === process.env.CRON_SECRET;
-
-    if (!isAuthorizedCron && process.env.NODE_ENV !== 'development') {
+    if (!cronSecret || cronSecretHeader !== cronSecret) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }

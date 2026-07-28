@@ -1,13 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 const prismaClient = new PrismaClient();
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const contestId = params.id;
     console.log(`[Contest API] Fetching contest with ID: ${contestId}`);

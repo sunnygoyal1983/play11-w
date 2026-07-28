@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { fetchMatchDetails } from '@/services/sportmonk/matches';
 
@@ -10,18 +10,14 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Starting automated sync of match players...');
 
-    // Check for authorization if needed
+    // Fail-closed cron authorization
+    const cronSecret = process.env.CRON_SECRET;
     const cronSecretHeader = request.headers.get('x-cron-secret');
-    const isAuthorizedCron = cronSecretHeader === process.env.CRON_SECRET;
-
-    if (!isAuthorizedCron) {
-      // For development, allow without secret
-      if (process.env.NODE_ENV !== 'development') {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+    if (!cronSecret || cronSecretHeader !== cronSecret) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     // Find all upcoming and live matches that might have player data

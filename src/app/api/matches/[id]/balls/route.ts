@@ -1,14 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { getRecentBalls } from '@/services/ball-data-service';
 
 /**
  * API endpoint to get recent balls data for a match
  */
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { searchParams } = new URL(request.url);
     const count = parseInt(searchParams.get('count') || '10');

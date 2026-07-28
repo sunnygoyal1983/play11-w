@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { monitorPrizeDistribution } from '@/services/prize-monitor-service';
 
 // This API route is designed to be called by a scheduled job (e.g., cron)

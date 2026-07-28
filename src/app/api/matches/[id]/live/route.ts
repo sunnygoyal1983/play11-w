@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { fetchLiveMatchDetails } from '@/services/live-scoring-service';
 import {
   getLiveMatchData,
@@ -6,10 +6,8 @@ import {
 } from '@/services/ball-data-service';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     console.log(`Fetching live data for match: ${params.id}`);
 

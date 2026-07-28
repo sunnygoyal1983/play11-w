@@ -1,3 +1,5 @@
+'use client';
+
 import { ReactNode } from 'react';
 import {
   Box,
@@ -53,3 +55,5 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     </Box>
   );
 }
+
+export default AdminLayout;

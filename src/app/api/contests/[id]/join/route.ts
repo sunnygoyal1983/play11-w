@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth-options';
 
 const prisma = new PrismaClient();
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.email) {
@@ -105,11 +103,31 @@ export async function POST(
 
     // Create contest entry and update wallet balance in a transaction
     const entry = await prisma.$transaction(async (tx) => {
-      // Deduct entry fee from wallet
-      await tx.user.update({
-        where: { id: user.id },
+      // Atomically deduct only if balance is sufficient
+      const walletUpdate = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          walletBalance: { gte: contest.entryFee },
+        },
         data: { walletBalance: { decrement: contest.entryFee } },
       });
+
+      if (walletUpdate.count !== 1) {
+        throw new Error('INSUFFICIENT_BALANCE');
+      }
+
+      // Atomically claim a contest spot only if not full
+      const contestUpdate = await tx.contest.updateMany({
+        where: {
+          id: params.id,
+          filledSpots: { lt: contest.totalSpots },
+        },
+        data: { filledSpots: { increment: 1 } },
+      });
+
+      if (contestUpdate.count !== 1) {
+        throw new Error('CONTEST_FULL');
+      }
 
       // Create transaction record
       await tx.transaction.create({
@@ -120,12 +138,6 @@ export async function POST(
           status: 'completed',
           reference: `Joined contest: ${contest.name}`,
         },
-      });
-
-      // Update contest filled spots
-      await tx.contest.update({
-        where: { id: params.id },
-        data: { filledSpots: { increment: 1 } },
       });
 
       // Create contest entry
@@ -141,6 +153,17 @@ export async function POST(
     return NextResponse.json(entry, { status: 201 });
   } catch (error) {
     console.error('Error joining contest:', error);
+    if (error instanceof Error) {
+      if (error.message === 'INSUFFICIENT_BALANCE') {
+        return NextResponse.json(
+          { error: 'Insufficient balance' },
+          { status: 400 }
+        );
+      }
+      if (error.message === 'CONTEST_FULL') {
+        return NextResponse.json({ error: 'Contest is full' }, { status: 400 });
+      }
+    }
     return NextResponse.json(
       { error: 'Failed to join contest' },
       { status: 500 }

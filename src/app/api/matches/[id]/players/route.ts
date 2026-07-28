@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 
 // Define player interfaces for type safety
@@ -19,10 +19,8 @@ interface PlayerBase {
 const ROLES = ['WK', 'BAT', 'AR', 'BOWL'];
 
 // GET /api/matches/[id]/players
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const matchId = params.id;
     console.log(`Fetching players for match: ${matchId}`);
