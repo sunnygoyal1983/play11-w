@@ -1,386 +1,222 @@
-# Play11 - Fantasy Cricket Platform
+# Play11 — Fantasy Cricket Platform
 
-Play11 is a fantasy cricket platform that allows users to create teams, join contests, and win cash prizes based on the real-life performance of cricket players. This project is built using Next.js for the frontend and PostgreSQL for the database, with Prisma as the ORM.
+Play11 lets users create fantasy teams, join contests, and win prizes based on real cricket performances. It uses **Next.js 16** (App Router), **React 19**, **PostgreSQL**, and **Prisma**, with live data from the SportMonk Cricket API.
 
 ## Features
 
-- **User Authentication**: Register, login, and profile management
-- **Match Management**: View upcoming, live, and completed cricket matches
-- **Team Creation**: Create fantasy teams with players from real cricket matches
-- **Contest Participation**: Join contests with different entry fees and prize pools
-- **Wallet System**: Add money, withdraw winnings, and track transactions
-- **Live Scoring**: Real-time updates of player performances and points
-- **Leaderboards**: Track your rank in contests and competitions
+- User authentication and profile management (NextAuth.js)
+- Upcoming, live, and completed match views
+- Fantasy team creation with real match squads
+- Contests with entry fees, prize pools, and leaderboards
+- Wallet deposits, withdrawals, and transaction history (Razorpay optional)
+- Live scoring and contest point updates
+- Admin panel for users, matches, contests, and settings
 
 ## Tech Stack
 
-- **Frontend**: Next.js 13+ with App Router, React 18, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js
-- **State Management**: Zustand
-- **API Integration**: SportMonk Cricket API
-- **Form Handling**: React Hook Form with Zod validation
-- **UI Components**: Custom components with Tailwind CSS
+| Area | Stack |
+|------|--------|
+| Framework | Next.js **16.2** (App Router + Proxy) |
+| UI | React **19**, TypeScript, Tailwind CSS |
+| API | Next.js Route Handlers (`src/app/api`) |
+| Database | PostgreSQL + Prisma ORM **6.x** |
+| Auth | NextAuth.js **4.24** + `@auth/prisma-adapter` |
+| State | Zustand |
+| Cricket data | SportMonk Cricket API |
+| Forms | React Hook Form + Zod |
+| Payments | Razorpay (optional) |
+
+**Runtime:** Node.js **20.9+** (required by Next.js 16)
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 16+ and npm
-- PostgreSQL database
+- Node.js 20.9 or later and npm
+- PostgreSQL
 
 ### Installation
 
-1. Clone the repository:
+1. Clone and install:
 
 ```bash
-git clone https://github.com/yourusername/play11.git
-cd play11
-```
-
-2. Install dependencies:
-
-```bash
+git clone https://github.com/sunnygoyal1983/play11-w.git
+cd play11-w
 npm install
 ```
 
-3. Set up environment variables:
+`postinstall` runs `prisma generate` automatically.
 
-Create a `.env` file in the root directory with the following variables:
-
-```
-# Database connection
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=play11
-DB_USER=postgres
-DB_PASSWORD=your_password
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-
-# NextAuth configuration
-NEXTAUTH_SECRET="your-nextauth-secret-key"
-NEXTAUTH_URL="http://localhost:3000"
-
-# SportMonk API
-SPORTMONK_API_KEY="your-sportmonk-api-key"
-SPORTMONK_API_URL="https://cricket.sportmonk.com/api/v2.0"
-```
-
-4. Initialize the database:
+2. Configure environment:
 
 ```bash
-npx prisma migrate dev --name init
+cp .env.example .env
 ```
 
-5. Start the development server:
+Edit `.env` with your values. Minimum required:
+
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/play11?schema=public"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-nextauth-secret-key-here-min-32-chars"
+SPORTMONK_API_KEY="your-sportmonk-api-key-here"
+CRON_SECRET="generate-a-long-random-secret"
+CRON_API_KEY="generate-a-long-random-api-key"
+```
+
+Optional: Razorpay, SMTP, and AWS S3 keys (see `.env.example`).
+
+3. Set up the database:
+
+```bash
+npx prisma migrate dev
+# or
+npm run setup-db
+```
+
+4. Create an admin user with `role = ADMIN` in the database (do not rely on email allowlists). Scripts under `scripts/` can help bootstrap users if needed—**change default passwords immediately**.
+
+5. Start the app:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+Open [http://localhost:3000](http://localhost:3000).
+
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Dev server (Webpack; see note below) |
+| `npm run build` | Production build |
+| `npm start` | Run production server |
+| `npm run lint` | ESLint |
+| `npm run generate-prisma` | Regenerate Prisma Client |
+| `npm run setup-db` | Database setup helper |
+| `npm run import-data` | Import SportMonk data |
+
+> **Windows note:** Native Next.js SWC binaries may be blocked by Application Control on some machines. This project’s `dev` / `build` scripts use `--webpack` so builds still work. On Linux/macOS (or after allowing the SWC binary), you can drop `--webpack` to use Turbopack.
 
 ## Project Structure
 
 ```
-play11/
-├── prisma/                  # Prisma schema and migrations
-├── public/                  # Static assets
+play11-w/
+├── prisma/                 # Schema and migrations
+├── public/                 # Static assets
+├── scripts/                # DB / import helpers
 ├── src/
-│   ├── app/                 # Next.js App Router
-│   │   ├── api/             # API routes
-│   │   ├── routes/          # App routes
-│   │   ├── globals.css      # Global styles
-│   │   ├── layout.tsx       # Root layout
-│   │   └── page.tsx         # Home page
-│   ├── components/          # React components
-│   ├── hooks/               # Custom React hooks
-│   ├── lib/                 # Utility functions and libraries
-│   └── services/            # External API services
-├── .env                     # Environment variables
-├── next.config.js           # Next.js configuration
-├── package.json             # Project dependencies
-└── README.md                # Project documentation
+│   ├── app/                # App Router pages + API routes
+│   │   ├── admin/          # Admin UI
+│   │   ├── api/            # REST / cron / payments APIs
+│   │   ├── auth/           # Sign-in / sign-up
+│   │   └── ...
+│   ├── components/         # Shared UI
+│   ├── lib/                # Auth helpers, Prisma, utilities
+│   ├── proxy.ts            # Request proxy (auth / cron guards)
+│   └── services/           # SportMonk and scoring services
+├── .env.example
+├── next.config.js
+└── package.json
 ```
 
-## API Integration
+## Security
 
-This project uses the SportMonk Cricket API to fetch real cricket data. You'll need to sign up for an API key at [SportMonk](https://sportmonk.com/) to use the live data features.
+- **Admin APIs and pages** require an authenticated session with `role === 'ADMIN'`.
+- **Cron / scheduler** endpoints require `x-cron-secret` or `x-api-key` matching `CRON_SECRET` / `CRON_API_KEY` (fail-closed if unset).
+- **Import / schema / debug** maintenance routes are locked down or disabled for production safety.
+- Never commit `.env`. Only `.env.example` is tracked.
+- Keep `NEXTAUTH_SECRET` at least 32 characters and rotate secrets if they were ever exposed.
 
-## Database Schema
+## Admin
 
-The database schema is defined in `prisma/schema.prisma` and includes models for:
+Admin UI: `/admin`
 
-- Users
-- Matches
-- Players
-- Contests
-- Fantasy Teams
-- Transactions
-- Player Statistics
+- Users, contests, matches, teams, players
+- Transactions and wallet tools
+- Platform settings
+- SportMonk import helpers
+
+Admin access is **role-based** (`User.role = ADMIN`), not email-based.
+
+## API Overview
+
+Public/read APIs serve matches, contests, players, and tournaments. Sensitive routes are protected:
+
+| Area | Auth |
+|------|------|
+| `/api/admin/*` | Admin session |
+| `/api/cron/*`, `/api/cron` | `CRON_SECRET` / `CRON_API_KEY` |
+| `/api/import`, `/api/scheduler`, `/api/sportmonk` | Admin session |
+| `/api/user/*`, contest join, wallet | Logged-in user |
+| `/api/payments/razorpay/*` | Signature + configured Razorpay secret |
+
+### Import sequence (admin session required)
+
+Import in dependency order to avoid FK errors:
+
+1. Tournaments → 2. Teams → 3. Matches → 4. Players  
+
+Or import all for a tournament:
+
+```bash
+curl -X POST http://localhost:3000/api/import \
+  -H "Content-Type: application/json" \
+  -H "Cookie: <admin-session-cookie>" \
+  -d '{"entityType": "all", "tournamentId": "123"}'
+```
+
+Use an authenticated admin browser session or equivalent cookie/header when calling import APIs.
+
+### Common endpoints
+
+- `GET /api/matches?type=upcoming|live|recent`
+- `GET /api/matches/[id]`
+- `GET /api/contests`, `POST /api/contests/[id]/join`
+- `GET /api/tournaments`, `GET /api/players`, `GET /api/teams`
+
+## Database
+
+Schema lives in `prisma/schema.prisma`. Main models:
+
+- Users & auth sessions
+- Tournaments, teams, matches, players
+- Contests, entries, prize breakups
+- Fantasy teams
+- Transactions / wallet
+- Settings
+
+```bash
+npx prisma migrate dev
+npx prisma studio   # optional GUI
+```
+
+## Payments (optional)
+
+Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` to enable deposits. Verification rejects requests if the secret is missing and uses atomic updates to avoid double-credit.
 
 ## Deployment
 
-The easiest way to deploy your Play11 application is to use the [Vercel Platform](https://vercel.com/new) from the creators of Next.js.
+1. Set production env vars (`DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, SportMonk, cron secrets, Razorpay if used).
+2. Build and start:
+
+```bash
+npm run build
+npm start
+```
+
+`output: 'standalone'` is enabled in `next.config.js` for container-friendly deploys. [Vercel](https://vercel.com) also works well with Next.js.
+
+Ensure cron jobs send `x-cron-secret` (or `x-api-key`) in production.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see `LICENSE` if present.
 
 ## Acknowledgements
 
-- [Next.js](https://nextjs.org/) - The React Framework
-- [Prisma](https://prisma.io/) - Next-generation ORM
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
-- [SportMonk](https://sportmonk.com/) - Cricket API provider
-
-# SportMonk Cricket API Integration
-
-This repository contains a Next.js application with API routes for fetching cricket data from the SportMonk API and storing it in a PostgreSQL database using Prisma.
-
-## API Structure
-
-The API is organized into separate endpoints for different entity types with clear dependencies between them:
-
-1. **Tournaments** - The foundation of the data hierarchy
-2. **Teams** - Teams can be part of tournaments
-3. **Matches** - Matches belong to tournaments and involve teams
-4. **Players** - Players belong to teams
-
-## API Endpoints
-
-### Tournaments API
-
-- `GET /api/tournaments` - Get all tournaments
-- `GET /api/tournaments/:id` - Get details for a specific tournament
-- `GET /api/tournaments/:id/matches` - Get matches for a specific tournament
-
-### Teams API
-
-- `GET /api/teams` - Get all teams
-- `GET /api/teams?tournament_id=X` - Get teams for a specific tournament
-- `GET /api/teams/:id` - Get details for a specific team
-- `GET /api/teams/:id/players` - Get players for a specific team
-
-### Matches API
-
-- `GET /api/matches` - Get all matches
-- `GET /api/matches?type=upcoming` - Get upcoming matches
-- `GET /api/matches?type=live` - Get live matches
-- `GET /api/matches?type=recent` - Get recent matches
-- `GET /api/matches/:id` - Get details for a specific match
-
-### Players API
-
-- `GET /api/players` - Get all players
-- `GET /api/players?team_id=X` - Get players for a specific team
-- `GET /api/players/:id` - Get details for a specific player
-
-### Import API
-
-- `POST /api/import` - Import data in the correct sequence
-  - Request body:
-    ```json
-    {
-      "entityType": "all", // or "tournaments", "teams", "matches", "players"
-      "tournamentId": "123" // Optional: Specific tournament ID
-    }
-    ```
-
-## Correct Import Sequence
-
-To avoid foreign key constraint errors, import data in this order:
-
-1. **Import tournaments first**
-
-   ```bash
-   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "tournaments"}'
-   ```
-
-2. **Import teams for a tournament**
-
-   ```bash
-   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "teams", "tournamentId": "123"}'
-   ```
-
-3. **Import matches for a tournament**
-
-   ```bash
-   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "matches", "tournamentId": "123"}'
-   ```
-
-4. **Import players for teams in a tournament**
-
-   ```bash
-   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "players", "tournamentId": "123"}'
-   ```
-
-5. **Import everything for a tournament in sequence**
-   ```bash
-   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "all", "tournamentId": "123"}'
-   ```
-
-## Database Schema
-
-The application uses the following database structure:
-
-- **Tournament** - Cricket leagues and tournaments
-- **Team** - Cricket teams
-- **Match** - Cricket matches between teams
-- **Player** - Cricket players belonging to teams
-
-## Setup and Configuration
-
-1. Set up environment variables in `.env`:
-
-   ```
-   DATABASE_URL="postgresql://user:password@localhost:5432/play11"
-   SPORTMONK_API_KEY="your_api_key_here"
-   ```
-
-2. Run database migrations:
-
-   ```
-   npx prisma migrate dev
-   ```
-
-3. Start the development server:
-
-   ```
-   npm run dev
-   ```
-
-4. Import data:
-   ```
-   curl -X POST http://localhost:3000/api/import -H "Content-Type: application/json" -d '{"entityType": "all"}'
-   ```
-
-## Setup Instructions
-
-### Database Setup
-
-Before running the application, you need to set up the database:
-
-1. Make sure you have PostgreSQL installed and running
-2. Create a database for the application
-3. Update the `.env` file with your database credentials
-
-### Running Migrations
-
-To set up the database schema and apply all migrations, run:
-
-```bash
-node scripts/apply-migrations.js
-```
-
-This script will:
-
-1. Check for a `.env` file and create one if it doesn't exist
-2. Run Prisma migrations to create all required tables
-3. Create a default admin user if one doesn't exist
-
-### Fixing Admin Access Issues
-
-If you encounter "Unauthorized: Admin access required" errors:
-
-1. Run the admin user update script:
-
-   ```bash
-   npx ts-node scripts/update-admin-users.ts
-   ```
-
-2. Create a default admin user:
-
-   ```bash
-   npx ts-node scripts/create-admin-user.ts
-   ```
-
-3. Log out and log back in with the admin credentials:
-   - Email: admin@play11.com
-   - Password: admin123
-
-### Running the Application
-
-To start the development server:
-
-```bash
-npm run dev
-```
-
-The application will be available at http://localhost:3000
-
-## Admin Interface
-
-The admin interface is available at `/admin` and provides access to:
-
-- User management
-- Contest management
-- Match management
-- System settings
-- Transaction monitoring
-
-## Database Models
-
-The application uses the following main models:
-
-- Users & Authentication
-- Tournaments & Matches
-- Players & Teams
-- Contests & Entries
-- Transactions & Wallet Management
-- System Settings
-
-## Fixing Settings Functionality
-
-If you're experiencing the "Cannot read properties of undefined (reading 'findMany')" error when trying to access the admin settings page, it's because the Settings table hasn't been added to your database. This happens because the Setting model needs to be defined in your Prisma schema and migrated to your database.
-
-### Automatic Fix
-
-We've created a helper script to automatically fix this issue:
-
-```bash
-node scripts/fix-settings-table.js
-```
-
-This script will:
-
-1. Add the Setting model to your Prisma schema if it doesn't exist
-2. Generate the Prisma client
-3. Create and run a migration to add the Settings table to your database
-
-### Manual Fix
-
-If the automatic script doesn't work, you can follow these steps:
-
-1. Add the Setting model to your `prisma/schema.prisma` file:
-
-```prisma
-model Setting {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  value       String
-  type        String   @default("string") // string, number, boolean, json
-  category    String   @default("general")
-  description String?
-  isPublic    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-```
-
-2. Generate the Prisma client:
-
-```bash
-npx prisma generate
-```
-
-3. Create and run a migration:
-
-```bash
-npx prisma migrate dev --name add_settings_model
-```
-
-4. Restart your development server.
-
-After following these steps, you should be able to access the admin settings page without errors.
+- [Next.js](https://nextjs.org/)
+- [Prisma](https://www.prisma.io/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [SportMonk](https://www.sportmonks.com/)
+- [NextAuth.js](https://next-auth.js.org/)
