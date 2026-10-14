@@ -16,7 +16,7 @@ Play11 lets users create fantasy teams, join contests, and win prizes based on r
 
 | Area | Stack |
 |------|--------|
-| Framework | Next.js **16.2** (App Router + Proxy) |
+| Framework | Next.js **16.4** (App Router + Proxy) |
 | UI | React **19**, TypeScript, Tailwind CSS |
 | API | Next.js Route Handlers (`src/app/api`) |
 | Database | PostgreSQL + Prisma ORM **6.x** |
