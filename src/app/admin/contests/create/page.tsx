@@ -186,7 +186,7 @@ export default function CreateContest() {
                 onChange={handleChange}
                 className={`w-full border ${
                   errors.matchId ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               >
                 <option value="">Select a match</option>
                 {matches.map((match) => (
@@ -213,7 +213,7 @@ export default function CreateContest() {
                 placeholder="e.g. Grand Prize Pool"
                 className={`w-full border ${
                   errors.name ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.name && (
                 <p className="text-red-500 text-xs mt-1">{errors.name}</p>
@@ -233,7 +233,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.entryFee ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.entryFee && (
                 <p className="text-red-500 text-xs mt-1">{errors.entryFee}</p>
@@ -253,7 +253,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.totalSpots ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.totalSpots && (
                 <p className="text-red-500 text-xs mt-1">{errors.totalSpots}</p>
@@ -273,7 +273,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.prizePool ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.prizePool && (
                 <p className="text-red-500 text-xs mt-1">{errors.prizePool}</p>
@@ -293,7 +293,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.totalPrize ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.totalPrize && (
                 <p className="text-red-500 text-xs mt-1">{errors.totalPrize}</p>
@@ -313,7 +313,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.firstPrize ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.firstPrize && (
                 <p className="text-red-500 text-xs mt-1">{errors.firstPrize}</p>
@@ -333,7 +333,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.winnerPercentage ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.winnerPercentage && (
                 <p className="text-red-500 text-xs mt-1">
@@ -355,7 +355,7 @@ export default function CreateContest() {
                 placeholder="0"
                 className={`w-full border ${
                   errors.winnerCount ? 'border-red-500' : 'border-gray-300'
-                } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`}
               />
               {errors.winnerCount && (
                 <p className="text-red-500 text-xs mt-1">

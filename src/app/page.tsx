@@ -53,7 +53,7 @@ export default function Home() {
   return (
     <MainLayout>
       {/* Hero Section */}
-      <section className="py-12 md:py-20 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg mb-12">
+      <section className="py-12 md:py-20 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg mb-12">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center">
             <div className="md:w-1/2 mb-8 md:mb-0">

@@ -31,7 +31,7 @@ export default function AdminLayout({
         <div className="md:hidden fixed top-0 left-0 z-50 p-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-indigo-600 focus:outline-none"
+            className="text-indigo-600 focus:outline-hidden"
           >
             {sidebarOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>

@@ -128,7 +128,7 @@ export default function AdminMatchTeams() {
             <input
               type="text"
               placeholder="Search teams by name or match..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -137,7 +137,7 @@ export default function AdminMatchTeams() {
           <div className="flex items-center">
             <FaFilter className="text-gray-400 mr-2" />
             <select
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               value={formatFilter}
               onChange={(e) => setFormatFilter(e.target.value)}
             >
@@ -189,7 +189,7 @@ export default function AdminMatchTeams() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         {team.logo ? (
-                          <div className="flex-shrink-0 h-10 w-10 mr-3">
+                          <div className="shrink-0 h-10 w-10 mr-3">
                             <Image
                               src={team.logo}
                               alt={team.name}
@@ -199,7 +199,7 @@ export default function AdminMatchTeams() {
                             />
                           </div>
                         ) : (
-                          <div className="flex-shrink-0 h-10 w-10 mr-3 bg-gray-200 rounded-full flex items-center justify-center">
+                          <div className="shrink-0 h-10 w-10 mr-3 bg-gray-200 rounded-full flex items-center justify-center">
                             <span className="text-gray-500 font-semibold">
                               {team.name.substring(0, 2).toUpperCase()}
                             </span>
@@ -207,7 +207,7 @@ export default function AdminMatchTeams() {
                         )}
                         <button
                           onClick={() => handleTeamClick(team)}
-                          className="text-sm font-medium text-gray-900 hover:text-indigo-600 focus:outline-none"
+                          className="text-sm font-medium text-gray-900 hover:text-indigo-600 focus:outline-hidden"
                         >
                           {team.name}
                         </button>

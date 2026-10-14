@@ -284,7 +284,7 @@ export default function PrizeMonitorPage() {
                                     variant={
                                       entry.userRole === 'ADMIN'
                                         ? 'default'
-                                        : 'outline'
+                                        : 'outline-solid'
                                     }
                                   >
                                     {entry.userRole}

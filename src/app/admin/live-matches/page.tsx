@@ -332,7 +332,7 @@ export default function LiveMatchesPage() {
               <button
                 onClick={startScheduler}
                 disabled={schedulerStatus.loading}
-                className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 focus:outline-none"
+                className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 focus:outline-hidden"
               >
                 {schedulerStatus.loading ? (
                   <FaSpinner className="animate-spin mr-1" />
@@ -346,7 +346,7 @@ export default function LiveMatchesPage() {
             <button
               onClick={syncAllLineups}
               disabled={syncingLineups}
-              className="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 focus:outline-none"
+              className="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 focus:outline-hidden"
             >
               {syncingLineups ? (
                 <FaSpinner className="animate-spin mr-1" />
@@ -359,7 +359,7 @@ export default function LiveMatchesPage() {
             <button
               onClick={checkUpcomingMatches}
               disabled={checkingMatches}
-              className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 focus:outline-none"
+              className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 focus:outline-hidden"
             >
               {checkingMatches ? (
                 <FaSpinner className="animate-spin mr-1" />
@@ -453,7 +453,7 @@ export default function LiveMatchesPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -504,7 +504,7 @@ export default function LiveMatchesPage() {
                       <button
                         onClick={() => updateMatchScores(match.id)}
                         disabled={updateStatus[match.id]?.loading}
-                        className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 focus:outline-none mr-2"
+                        className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 focus:outline-hidden mr-2"
                       >
                         {updateStatus[match.id]?.loading ? (
                           <FaSpinner className="animate-spin mr-1" />
@@ -522,7 +522,7 @@ export default function LiveMatchesPage() {
                         <button
                           onClick={() => finalizeMatchContests(match.id)}
                           disabled={finalizeStatus[match.id]?.loading}
-                          className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 focus:outline-none"
+                          className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 focus:outline-hidden"
                         >
                           {finalizeStatus[match.id]?.loading ? (
                             <FaSpinner className="animate-spin mr-1" />

@@ -438,7 +438,7 @@ export default function ProfilePage() {
                   </div>
                   <button
                     onClick={handleImageClick}
-                    className="absolute bottom-2 right-0 bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="absolute bottom-2 right-0 bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                     disabled={isUploading}
                   >
                     <FaCamera size={14} />
@@ -469,7 +469,7 @@ export default function ProfilePage() {
               {isEditMode ? (
                 <form onSubmit={handleSubmit(onSubmit)}>
                   <div className="space-y-6">
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-xs">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">
                         Personal Information
                       </h3>
@@ -481,7 +481,7 @@ export default function ProfilePage() {
                           <input
                             type="text"
                             {...register('name', { required: 'Name is required' })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                           {errors.name && (
                             <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
@@ -503,7 +503,7 @@ export default function ProfilePage() {
                                   'Please enter a valid 10-digit phone number',
                               },
                             })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                           {errors.phone && (
                             <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
@@ -519,7 +519,7 @@ export default function ProfilePage() {
                           <textarea
                             {...register('address')}
                             rows={3}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                         </div>
 
@@ -530,7 +530,7 @@ export default function ProfilePage() {
                           <input
                             type="date"
                             {...register('dob')}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                         </div>
 
@@ -546,7 +546,7 @@ export default function ProfilePage() {
                                 message: 'Please enter a valid PAN number',
                               },
                             })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                           {errors.panNumber && (
                             <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
@@ -557,7 +557,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-xs">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">
                         Bank Account Details
                       </h3>
@@ -569,7 +569,7 @@ export default function ProfilePage() {
                           <input
                             type="text"
                             {...register('bankName')}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                         </div>
 
@@ -580,7 +580,7 @@ export default function ProfilePage() {
                           <input
                             type="text"
                             {...register('accountHolderName')}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                         </div>
 
@@ -596,7 +596,7 @@ export default function ProfilePage() {
                                 message: 'Please enter a valid account number (9-18 digits)',
                               },
                             })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                           {errors.accountNumber && (
                             <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
@@ -617,7 +617,7 @@ export default function ProfilePage() {
                                 message: 'Please enter a valid IFSC code',
                               },
                             })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border text-gray-900"
                           />
                           {errors.ifscCode && (
                             <p className="mt-1 text-sm text-red-600 bg-red-50 p-1 rounded">
@@ -632,7 +632,7 @@ export default function ProfilePage() {
                       <button
                         type="submit"
                         disabled={isUpdating}
-                        className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 font-medium"
+                        className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 shadow-xs focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 font-medium"
                       >
                         {isUpdating ? 'Saving...' : 'Save Changes'}
                       </button>
@@ -710,7 +710,7 @@ export default function ProfilePage() {
                     <h3 className="text-lg font-medium text-gray-900 mb-4">
                       Bank Account Information
                     </h3>
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-xs">
                       {userProfile.bankName &&
                       userProfile.accountNumber &&
                       userProfile.ifscCode ? (
@@ -769,7 +769,7 @@ export default function ProfilePage() {
                           </div>
                           <button
                             onClick={handleEditToggle}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors duration-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 font-medium"
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors duration-200 shadow-xs focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 font-medium"
                           >
                             Add Bank Details
                           </button>
@@ -780,7 +780,7 @@ export default function ProfilePage() {
 
                   <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-6">
                     <div className="flex">
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <FaExclamationCircle className="h-5 w-5 text-yellow-400" />
                       </div>
                       <div className="ml-3">

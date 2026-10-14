@@ -169,7 +169,7 @@ export default function Matches() {
                           <p className="text-xs text-gray-500 mb-1">Contests Available:</p>
                           <div className="flex space-x-2 overflow-x-auto pb-2">
                             {match.contests.map((contest, idx) => (
-                              <div key={idx} className="flex-shrink-0 bg-gray-100 rounded p-2 text-xs">
+                              <div key={idx} className="shrink-0 bg-gray-100 rounded p-2 text-xs">
                                 <p className="font-medium">₹{contest.entryFee}</p>
                                 <p className="text-gray-500">{contest.filledSpots}/{contest.totalSpots}</p>
                               </div>

@@ -330,7 +330,7 @@ export default function UserWalletPage() {
                   Wallet Type
                 </label>
                 <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                   value={walletType}
                   onChange={(e) => setWalletType(e.target.value as any)}
                 >
@@ -347,7 +347,7 @@ export default function UserWalletPage() {
               </label>
               <input
                 type="number"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 placeholder="Enter amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -362,7 +362,7 @@ export default function UserWalletPage() {
                 Description / Reason
               </label>
               <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 placeholder="Enter a description for this transaction"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

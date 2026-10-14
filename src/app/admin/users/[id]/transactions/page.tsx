@@ -260,14 +260,14 @@ export default function UserTransactionsPage() {
         {/* Filters */}
         <div className="p-4 bg-gray-50 border-b">
           <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
-            <div className="relative flex-grow">
+            <div className="relative grow">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <FaSearch className="text-gray-400" />
               </div>
               <input
                 type="text"
                 placeholder="Search transactions..."
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -275,7 +275,7 @@ export default function UserTransactionsPage() {
 
             <div className="flex space-x-2">
               <select
-                className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500"
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
               >
@@ -289,7 +289,7 @@ export default function UserTransactionsPage() {
               </select>
 
               <select
-                className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >

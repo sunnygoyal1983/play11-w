@@ -332,7 +332,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Filter by category */}
-      <div className="bg-white rounded-lg shadow mb-6 p-4">
+      <div className="bg-white rounded-lg shadow-sm mb-6 p-4">
         <div className="flex items-center">
           <FaFilter className="text-gray-400 mr-2" />
           <span className="text-gray-600 mr-4">Filter by Category:</span>
@@ -487,7 +487,7 @@ export default function SettingsPage() {
       )}
 
       {/* Settings Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

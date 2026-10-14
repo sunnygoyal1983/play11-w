@@ -443,7 +443,7 @@ export default function CleanupTransactionsPage() {
               Contest Win Transactions Summary
             </h2>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
+            <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
               {summaryLoading ? (
                 <div className="flex justify-center py-8">
                   <FaSpinner className="animate-spin text-indigo-600 text-xl" />
@@ -665,7 +665,7 @@ export default function CleanupTransactionsPage() {
               Failed Contest Win Transactions
             </h2>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
+            <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
                 <p className="text-gray-700">
                   This section shows contest win transactions that failed to
@@ -805,7 +805,7 @@ export default function CleanupTransactionsPage() {
 
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
               <div className="flex">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
                 </div>
                 <div className="ml-3">
@@ -819,7 +819,7 @@ export default function CleanupTransactionsPage() {
               </div>
             </div>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
+            <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
               <p className="mb-4">
                 Use this tool to fix missing contest win transactions in the
                 database. This helps ensure that each user's wallet balance
@@ -902,7 +902,7 @@ export default function CleanupTransactionsPage() {
             </div>
 
             {missingTransactionsResult && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
+              <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
                 <h3 className="text-lg font-semibold mb-4">
                   Missing Transaction Results
                 </h3>
@@ -915,7 +915,7 @@ export default function CleanupTransactionsPage() {
                   }`}
                 >
                   <div className="flex">
-                    <div className="flex-shrink-0">
+                    <div className="shrink-0">
                       {missingTransactionsResult.success ? (
                         <FaCheckCircle className="h-5 w-5 text-green-400" />
                       ) : (
@@ -1021,7 +1021,7 @@ export default function CleanupTransactionsPage() {
 
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
               <div className="flex">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
                 </div>
                 <div className="ml-3">
@@ -1035,7 +1035,7 @@ export default function CleanupTransactionsPage() {
               </div>
             </div>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
+            <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
               <p className="mb-4">
                 Use this tool to clean up duplicate contest win transactions in
                 the database. This helps ensure that each user's wallet balance
@@ -1063,7 +1063,7 @@ export default function CleanupTransactionsPage() {
             </div>
 
             {result && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
+              <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
                 <h3 className="text-lg font-semibold mb-4">Cleanup Results</h3>
 
                 <div
@@ -1072,7 +1072,7 @@ export default function CleanupTransactionsPage() {
                   }`}
                 >
                   <div className="flex">
-                    <div className="flex-shrink-0">
+                    <div className="shrink-0">
                       {result.success ? (
                         <FaCheckCircle className="h-5 w-5 text-green-400" />
                       ) : (
@@ -1149,7 +1149,7 @@ export default function CleanupTransactionsPage() {
 
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
               <div className="flex">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
                 </div>
                 <div className="ml-3">
@@ -1163,7 +1163,7 @@ export default function CleanupTransactionsPage() {
               </div>
             </div>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
+            <div className="bg-white shadow-sm rounded-lg p-6 mb-6">
               <p className="mb-4">
                 Use this tool to fix database schema issues when Prisma
                 migrations fail. It applies direct SQL modifications to add
@@ -1191,7 +1191,7 @@ export default function CleanupTransactionsPage() {
             </div>
 
             {schemaResult && (
-              <div className="bg-white shadow rounded-lg p-6">
+              <div className="bg-white shadow-sm rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-4">
                   Schema Fix Results
                 </h3>
@@ -1202,7 +1202,7 @@ export default function CleanupTransactionsPage() {
                   }`}
                 >
                   <div className="flex">
-                    <div className="flex-shrink-0">
+                    <div className="shrink-0">
                       {schemaResult.success ? (
                         <FaCheckCircle className="h-5 w-5 text-green-400" />
                       ) : (

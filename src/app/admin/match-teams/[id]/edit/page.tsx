@@ -121,7 +121,7 @@ export default function EditMatchTeam(props: { params: Promise<{ id: string }> }
               type="text"
               value={formData.name}
               onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              className="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-hidden focus:shadow-outline"
               required
             />
           </div>
@@ -136,7 +136,7 @@ export default function EditMatchTeam(props: { params: Promise<{ id: string }> }
               type="text"
               value={formData.logo}
               onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              className="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-hidden focus:shadow-outline"
             />
             {formData.logo && (
               <div className="mt-2">
@@ -162,14 +162,14 @@ export default function EditMatchTeam(props: { params: Promise<{ id: string }> }
           <div className="flex items-center justify-end">
             <Link
               href="/admin/match-teams"
-              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mr-2"
+              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-hidden focus:shadow-outline mr-2"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={submitting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-hidden focus:shadow-outline flex items-center"
             >
               {submitting ? (
                 <>

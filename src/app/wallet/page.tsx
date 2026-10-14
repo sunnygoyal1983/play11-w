@@ -411,7 +411,7 @@ export default function Wallet() {
                   <input
                     type="number"
                     id="amount"
-                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                     placeholder="Enter amount"
                     min="100"
                     step="100"
@@ -530,7 +530,7 @@ export default function Wallet() {
                   <input
                     type="number"
                     id="withdraw-amount"
-                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                     placeholder="Enter amount"
                     min="100"
                     max={walletData.winnings}
@@ -547,7 +547,7 @@ export default function Wallet() {
                   </label>
                   <select
                     id="account"
-                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                     value={withdrawalMethod}
                     onChange={(e) => setWithdrawalMethod(e.target.value)}
                   >

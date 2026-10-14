@@ -236,7 +236,7 @@ export default function EditContest(props: { params: Promise<{ id: string }> }) 
           ? 'border-red-500'
           : 'border-yellow-500'
         : 'border-gray-300'
-    } rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500`;
+    } rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500`;
   };
 
   // Update calculated fields based on core inputs
@@ -704,7 +704,7 @@ export default function EditContest(props: { params: Promise<{ id: string }> }) 
                     name="prizeStructure"
                     value={formData.prizeStructure}
                     onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="topHeavy">
                       Top Heavy (bigger prizes for top ranks)

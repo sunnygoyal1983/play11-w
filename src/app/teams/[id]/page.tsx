@@ -392,7 +392,7 @@ export default function TeamDetailsPage() {
                             key={player.id}
                             className="flex items-center bg-gray-50 p-3 rounded hover:shadow-md transition-shadow"
                           >
-                            <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3 relative">
+                            <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden shrink-0 mr-3 relative">
                               {player.image ? (
                                 <Image
                                   src={player.image}
@@ -421,7 +421,7 @@ export default function TeamDetailsPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex-grow">
+                            <div className="grow">
                               <div className="flex flex-col">
                                 <p className="font-medium text-gray-900">
                                   {player.name}
@@ -468,7 +468,7 @@ export default function TeamDetailsPage() {
                         key={player.id}
                         className="flex items-center bg-gray-50 p-3 rounded hover:shadow-md transition-shadow"
                       >
-                        <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3 relative">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden shrink-0 mr-3 relative">
                           {player.image ? (
                             <Image
                               src={player.image}
@@ -497,7 +497,7 @@ export default function TeamDetailsPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex-grow">
+                        <div className="grow">
                           <div className="flex flex-col">
                             <p className="font-medium text-gray-900">
                               {player.name}

@@ -522,7 +522,7 @@ export default function EditTeamPage() {
               id="teamName"
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
-              className="w-full md:w-1/2 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full md:w-1/2 p-2 border border-gray-300 rounded focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter team name"
               maxLength={30}
             />
@@ -551,7 +551,7 @@ export default function EditTeamPage() {
                     }`}
                     onClick={() => setCaptain(player.id)}
                   >
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden shrink-0 mr-3">
                       {player.image ? (
                         <Image
                           src={player.image}
@@ -600,7 +600,7 @@ export default function EditTeamPage() {
                     }`}
                     onClick={() => setViceCaptain(player.id)}
                   >
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden shrink-0 mr-3">
                       {player.image ? (
                         <Image
                           src={player.image}
@@ -655,7 +655,7 @@ export default function EditTeamPage() {
                         key={player.id}
                         className="flex items-center bg-gray-50 p-3 rounded"
                       >
-                        <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden shrink-0 mr-3">
                           {player.image ? (
                             <Image
                               src={player.image}
@@ -674,7 +674,7 @@ export default function EditTeamPage() {
                             </div>
                           )}
                         </div>
-                        <div className="flex-grow">
+                        <div className="grow">
                           <div className="flex items-center">
                             <p className="font-medium">{player.name}</p>
                             {player.id === captain && (
@@ -711,7 +711,7 @@ export default function EditTeamPage() {
                     key={player.id}
                     className="flex items-center bg-gray-50 p-3 rounded"
                   >
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0 mr-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden shrink-0 mr-3">
                       {player.image ? (
                         <Image
                           src={player.image}
@@ -730,7 +730,7 @@ export default function EditTeamPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex-grow">
+                    <div className="grow">
                       <div className="flex items-center">
                         <p className="font-medium">{player.name}</p>
                         {player.id === captain && (

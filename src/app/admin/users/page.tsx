@@ -127,7 +127,7 @@ export default function AdminUsers() {
     return (
       <div className="bg-red-50 border-l-4 border-red-500 p-4 my-6">
         <div className="flex">
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <FaTrash className="h-5 w-5 text-red-400" />
           </div>
           <div className="ml-3">
@@ -161,7 +161,7 @@ export default function AdminUsers() {
             <input
               type="text"
               placeholder="Search users by name or email..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -170,7 +170,7 @@ export default function AdminUsers() {
           <div className="flex items-center">
             <FaFilter className="text-gray-400 mr-2" />
             <select
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
             >

@@ -956,7 +956,7 @@ export default function CreateTeam() {
 
   // Render player card
   const renderPlayerCard = (player: any) => (
-    <div className="bg-white rounded-lg shadow-sm p-3 mb-2">
+    <div className="bg-white rounded-lg shadow-xs p-3 mb-2">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="font-medium flex items-center">
@@ -1408,7 +1408,7 @@ export default function CreateTeam() {
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder="Enter team name"
-                  className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-2 border rounded-md focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                   maxLength={30}
                 />
               </div>

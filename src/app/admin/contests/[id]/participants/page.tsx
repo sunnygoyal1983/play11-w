@@ -277,7 +277,7 @@ export default function ContestParticipantsPage() {
                 <input
                   type="text"
                   placeholder="Search by name, email or team..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full"
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 block w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />

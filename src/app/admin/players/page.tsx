@@ -92,7 +92,7 @@ export default function AdminPlayers() {
             <input
               type="text"
               placeholder="Search players by name..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -102,7 +102,7 @@ export default function AdminPlayers() {
             <div className="flex items-center">
               <FaFilter className="text-gray-400 mr-2" />
               <select
-                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 value={teamFilter}
                 onChange={(e) => setTeamFilter(e.target.value)}
               >
@@ -117,7 +117,7 @@ export default function AdminPlayers() {
             
             <div className="flex items-center ml-0 sm:ml-2">
               <select
-                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
               >
@@ -142,7 +142,7 @@ export default function AdminPlayers() {
           {filteredPlayers.map((player: any) => (
             <div key={player.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
               <div className="p-4 flex items-center space-x-4">
-                <div className="w-16 h-16 relative rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                <div className="w-16 h-16 relative rounded-full overflow-hidden bg-gray-100 shrink-0">
                   <Image
                     src={player.image || '/player-images/default.png'}
                     alt={player.name}
@@ -161,7 +161,7 @@ export default function AdminPlayers() {
                     </span>
                   </div>
                 </div>
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <span className="text-lg font-bold text-indigo-600">{player.credits}</span>
                 </div>
               </div>

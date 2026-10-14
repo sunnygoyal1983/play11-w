@@ -388,15 +388,15 @@ export default function MatchPlayersPage() {
 
       {/* Player Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="text-sm text-gray-500">Total Players</div>
           <div className="text-2xl font-bold">{totalPlayers}</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="text-sm text-gray-500">{match.teamA.name}</div>
           <div className="text-2xl font-bold">{teamAPlayers.length}</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="text-sm text-gray-500">{match.teamB.name}</div>
           <div className="text-2xl font-bold">{teamBPlayers.length}</div>
         </div>
