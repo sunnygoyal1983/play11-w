@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -61,6 +62,9 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
 
 // Update match details
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   const params = await props.params;
   try {
     const data = await request.json();

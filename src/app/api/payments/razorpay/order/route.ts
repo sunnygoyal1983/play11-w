@@ -12,7 +12,13 @@ const razorpay = new Razorpay({
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return NextResponse.json(
+        { error: 'Payments are not configured' },
+        { status: 500 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json(
@@ -25,9 +31,9 @@ export async function POST(request: NextRequest) {
     const { amount } = await request.json();
 
     // Validate amount
-    if (!amount || amount < 100) {
+    if (!amount || amount < 100 || amount > 100000) {
       return NextResponse.json(
-        { error: 'Invalid amount: Minimum amount should be ₹100' },
+        { error: 'Amount must be between ₹100 and ₹100,000' },
         { status: 400 }
       );
     }

@@ -31,13 +31,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
     }
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
-    }
-
-    // Validate file size (2MB limit)
     if (file.size > 2 * 1024 * 1024) {
       return NextResponse.json(
         { error: 'File too large (max 2MB)' },
@@ -46,10 +39,34 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Generate a unique filename using user ID and timestamp
+      const bytes = await file.arrayBuffer();
+      const header = new Uint8Array(bytes).subarray(0, 12);
+      const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+      const isPng =
+        header[0] === 0x89 &&
+        header[1] === 0x50 &&
+        header[2] === 0x4e &&
+        header[3] === 0x47;
+      const isWebp =
+        header[0] === 0x52 &&
+        header[1] === 0x49 &&
+        header[2] === 0x46 &&
+        header[3] === 0x46 &&
+        header[8] === 0x57 &&
+        header[9] === 0x45 &&
+        header[10] === 0x42 &&
+        header[11] === 0x50;
+
+      const fileExtension = isJpeg ? 'jpg' : isPng ? 'png' : isWebp ? 'webp' : null;
+      if (!fileExtension) {
+        return NextResponse.json(
+          { error: 'Only JPEG, PNG, and WebP images are allowed' },
+          { status: 400 }
+        );
+      }
+
       const timestamp = Date.now();
-      const cleanUserId = userId.replace(/-/g, '').substring(0, 8);
-      const fileExtension = file.type.split('/')[1] || 'jpg';
+      const cleanUserId = userId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
       const fileName = `${cleanUserId}-${timestamp}.${fileExtension}`;
 
       // Define paths
@@ -62,9 +79,6 @@ export async function POST(request: NextRequest) {
         await mkdir(uploadDir, { recursive: true });
       }
 
-      // Convert the file to an ArrayBuffer and then to a Uint8Array
-      // Using Uint8Array instead of Buffer to avoid type issues
-      const bytes = await file.arrayBuffer();
       const uint8Array = new Uint8Array(bytes);
 
       // Write the file to disk

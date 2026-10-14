@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/api-auth';
 
 export async function GET() {
   try {
@@ -69,6 +70,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   try {
     const { teamId, name, logo } = await request.json();
     

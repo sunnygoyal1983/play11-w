@@ -63,7 +63,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Also support GET requests for easier testing in the browser
-export async function GET(request: NextRequest) {
-  return POST(request);
-}

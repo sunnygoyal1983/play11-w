@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { requireAdmin } from '@/lib/api-auth';
 
 // GET /api/matches
 export async function GET(request: NextRequest) {
@@ -125,6 +126,9 @@ export async function getById(
 export { getById as GET_PARAM_ID };
 
 export async function PATCH(request: Request) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await request.json();
 

@@ -5,18 +5,44 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: Request) {
   try {
     const { name, email, password } = await request.json();
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    const normalizedEmail =
+      typeof email === 'string' ? email.trim().toLowerCase() : '';
 
-    // Validate input
-    if (!name || !email || !password) {
+    if (!trimmedName || !normalizedEmail || !password) {
       return NextResponse.json(
         { message: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Check if user already exists
+    if (trimmedName.length > 80) {
+      return NextResponse.json(
+        { message: 'Name is too long' },
+        { status: 400 }
+      );
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return NextResponse.json(
+        { message: 'Invalid email address' },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof password !== 'string' ||
+      password.length < 8 ||
+      password.length > 72
+    ) {
+      return NextResponse.json(
+        { message: 'Password must be between 8 and 72 characters' },
+        { status: 400 }
+      );
+    }
+
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -32,8 +58,8 @@ export async function POST(request: Request) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: trimmedName,
+        email: normalizedEmail,
         password: hashedPassword,
       },
     });

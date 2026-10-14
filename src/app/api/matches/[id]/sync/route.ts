@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from 'next-auth';
 import { syncLiveMatchData } from '@/services/ball-data-service';
 import { prisma } from '@/lib/prisma';
+import { authOptions } from '@/lib/auth-options';
 
 /**
  * Endpoint to sync live match data from SportMonks to our database
  */
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   const params = await props.params;
   try {
     console.log(`Syncing live data for match: ${params.id}`);

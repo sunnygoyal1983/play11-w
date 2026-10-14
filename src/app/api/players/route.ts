@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/api-auth';
 
 // Define player interfaces for type safety
 interface PlayerBase {
@@ -500,6 +501,9 @@ export async function getById(
 export { getById as GET_PARAM_ID };
 
 export async function POST(req: Request) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   try {
     const {
       name,

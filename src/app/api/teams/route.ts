@@ -3,6 +3,8 @@ import { sportmonkApi, prisma } from '@/services/sportmonk';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { fetchTeamPlayers } from '@/services/sportmonk-api';
+import { requireAdmin } from '@/lib/api-auth';
+import { isAdminRole } from '@/lib/auth-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -181,6 +183,9 @@ export async function getPlayers(
 }
 
 export async function POST() {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   try {
     // Import teams from SportMonk API
     const data = await fetchTeamPlayers(1);
@@ -200,6 +205,11 @@ export async function POST() {
 
 export async function DELETE(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await request.json();
 
     if (!id) {
@@ -209,7 +219,19 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Delete the fantasy team
+    const team = await prisma.fantasyTeam.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+    }
+
+    if (team.userId !== session.user.id && !isAdminRole(session.user.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await prisma.fantasyTeam.delete({
       where: { id },
     });
